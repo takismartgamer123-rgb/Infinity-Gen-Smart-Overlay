@@ -9,7 +9,7 @@
     "node": "18.x"
   },
   "dependencies": {
-    "masterchat": "^3.1",
+    "masterchat": "^1.1.0",
     "canvas": "^2.11.2", 
     "express": "^4.19.2",
     "fluent-ffmpeg": "^2.1.3"

@@ -1,25 +1,24 @@
 {
   "name": "infinity-gen-allinone",
   "version": "5.0.1",
-  "description": "Infinity Gen ♾️ بث + ألعاب في سيرفس واحد مضاد لريندر",
-  "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "bash render-build.sh"
+    "build": "npm install"
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
   },
   "dependencies": {
     "masterchat": "^0.1.6",
-    "canvas": "^2.11.2",
+    "canvas": "^2.11.2", 
     "express": "^4.19.2",
     "fluent-ffmpeg": "^2.1.3"
   },
-  "engines": {
-    "node": "18.x"
-  },
   "aptPackages": [
     "libcairo2-dev",
-    "libpango1.0-dev", 
-    "libjpeg-dev",
+    "libpango1.0-dev",
+    "libjpeg-dev", 
     "libgif-dev",
     "librsvg2-dev"
   ]

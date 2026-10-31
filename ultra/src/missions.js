@@ -5,7 +5,7 @@ class MissionEngine {
   constructor(db, economy, events) { this.db = db; this.economy = economy; this.events = events; this.seed(); }
   seed() {
     const now = Date.now();
-    this.db.run('UPDATE missions SET status="expired" WHERE status="active" AND (ends_at<=? OR scope="live")', [now]);
+    this.db.run('UPDATE missions SET status=\'expired\' WHERE status=\'active\' AND (ends_at<=? OR scope=\'live\')', [now]);
     const dayStart=Date.UTC(new Date(now).getUTCFullYear(),new Date(now).getUTCMonth(),new Date(now).getUTCDate());
     const dayKey=new Date(dayStart).toISOString().slice(0,10);
     const dayEnd=dayStart+86400000;
@@ -24,23 +24,23 @@ class MissionEngine {
     );
   }
   list() {
-    return this.db.all('SELECT id,scope,title,description,target,progress,reward_coins,reward_xp,starts_at,ends_at,status FROM missions WHERE status!="expired" ORDER BY CASE scope WHEN \'live\' THEN 1 WHEN \'daily\' THEN 2 WHEN \'weekly\' THEN 3 ELSE 4 END', []);
+    return this.db.all('SELECT id,scope,title,description,target,progress,reward_coins,reward_xp,starts_at,ends_at,status FROM missions WHERE status!=\'expired\' ORDER BY CASE scope WHEN \'live\' THEN 1 WHEN \'daily\' THEN 2 WHEN \'weekly\' THEN 3 ELSE 4 END', []);
   }
   contribute(user, event) {
     if (!event || event.trusted !== true || !event.id) return [];
     const userId = safeId(user.id); if (!userId) return [];
     const now = Date.now(); const completed = [];
-    const active = this.db.all('SELECT * FROM missions WHERE status="active" AND starts_at<=? AND ends_at>? ORDER BY scope', [now,now]);
+    const active = this.db.all('SELECT * FROM missions WHERE status=\'active\' AND starts_at<=? AND ends_at>? ORDER BY scope', [now,now]);
     for (const mission of active) {
       const result = this.db.transaction(() => {
         this.db.ensureUser(user);
         const inserted = this.db.run('INSERT OR IGNORE INTO mission_contributions(mission_id,user_id,event_id,amount,created_at) VALUES(?,?,?,?,?)',
           [mission.id,userId,String(event.id),1,now]);
         if (!inserted.changes) return null;
-        this.db.run('UPDATE missions SET progress=MIN(target,progress+1) WHERE id=? AND status="active"', [mission.id]);
+        this.db.run('UPDATE missions SET progress=MIN(target,progress+1) WHERE id=? AND status=\'active\'', [mission.id]);
         const updated = this.db.get('SELECT * FROM missions WHERE id=?', [mission.id]);
         if (updated.progress >= updated.target && updated.status === 'active') {
-          this.db.run('UPDATE missions SET status="completed" WHERE id=? AND status="active"', [mission.id]);
+          this.db.run('UPDATE missions SET status=\'completed\' WHERE id=? AND status=\'active\'', [mission.id]);
           return updated;
         }
         return null;

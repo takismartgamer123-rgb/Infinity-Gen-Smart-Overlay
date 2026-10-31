@@ -5,7 +5,7 @@ const { MessageGuard, cleanText, safeId } = require('./security');
 class GameEngine {
   constructor(db,events,config){
     this.db=db;this.events=events;this.config=config;this.guard=new MessageGuard();this.session=null;this.lobbyTimer=null;this.finishTimer=null;
-    this.db.run('UPDATE game_sessions SET phase="interrupted",updated_at=? WHERE phase IN ("lobby","running")',[Date.now()]);
+    this.db.run('UPDATE game_sessions SET phase=\'interrupted\',updated_at=? WHERE phase IN (\'lobby\',\'running\')',[Date.now()]);
   }
   start(gameId,host){
     if(this.session)throw new Error('A game session is already active.');
@@ -85,7 +85,7 @@ class GameEngine {
   }
   clear(){
     if(this.lobbyTimer)clearTimeout(this.lobbyTimer);if(this.finishTimer)clearTimeout(this.finishTimer);
-    if(this.session)this.db.run('UPDATE game_sessions SET phase="closed",updated_at=? WHERE id=?',[Date.now(),this.session.id]);
+    if(this.session)this.db.run('UPDATE game_sessions SET phase=\'closed\',updated_at=? WHERE id=?',[Date.now(),this.session.id]);
     this.session=null;this.lobbyTimer=null;this.finishTimer=null;this.events.emit('game:state',this.snapshot());
   }
   persist(){if(this.session)this.db.saveSession(this.session);}

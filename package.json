@@ -3,21 +3,22 @@
   "version": "5.0.2",
   "scripts": {
     "start": "node server.js",
-    "build": "npm install"
+    "build": "npm install",
+    "test": "node --test"
   },
   "engines": {
     "node": "22.x || 24.x"
   },
   "dependencies": {
     "masterchat": "^1.1.0",
-    "canvas": "^2.11.2", 
+    "canvas": "^2.11.2",
     "express": "^4.19.2",
     "fluent-ffmpeg": "^2.1.3"
   },
   "aptPackages": [
     "libcairo2-dev",
     "libpango1.0-dev",
-    "libjpeg-dev", 
+    "libjpeg-dev",
     "libgif-dev",
     "librsvg2-dev",
     "ffmpeg"

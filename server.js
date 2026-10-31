@@ -128,6 +128,11 @@ setInterval(() => {
         showToast('انتهت حرب الكلمات!');
         scheduleGameReset();
     }
+    if (STATE.mode === 'game' && STATE.game === 'سرعة' && !STATE.data.finished &&
+        Date.now() - STATE.data.started >= 30000) {
+        STATE.data.finished = true;
+        showToast('انتهى تحدي السرعة!');
+    }
     if (STATE.mode === 'game' && checkGameEnd(STATE.game, STATE.data)) {
         scheduleGameReset();
     }

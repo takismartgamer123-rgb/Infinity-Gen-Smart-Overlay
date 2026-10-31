@@ -10,7 +10,11 @@ const GAMES = {
         name: 'مافيا', min: 4, max: 10, emoji: '🔪', cmd: 'مافيا',
         init: (p) => {
             const r = assignMafiaRoles(p);
-            return { phase: 'night', day: 1, roles: r, alive: [...p], votes: {}, killed: null, executed: null };
+            return {
+                phase: 'night', day: 1, roles: r, alive: [...p],
+                votes: {}, killed: null, saved: null, lastKilled: null,
+                executed: null, finished: false, winner: null
+            };
         },
         renderer: drawMafia,
         input: handleMafia
@@ -94,15 +98,18 @@ const GAMES = {
     },
     سجن: {
         name: 'سجن و جلاد', min: 3, max: 10, emoji: '⛓️', cmd: 'سجن',
-        init: (p) => ({ warden: p[0], prisoners: p.slice(1), votes: {}, executed: null, round: 1 }),
+        init: (p) => ({ warden: p[0], prisoners: p.slice(1), votes: {}, executed: null, round: 1, finished: false, winner: null }),
         renderer: drawJail,
         input: handleJail
     },
     سرعة: {
         name: 'تحدي سرعة', min: 2, max: 10, emoji: '⚡', cmd: 'سرعة',
-        init: () => {
+        init: (p) => {
             const e = ['🔥', '⚡', '💎', '👑', '🗿', '🚀', '💰'];
-            return { emoji: e[Math.floor(Math.random() * e.length)], clicked: [], started: Date.now() };
+            return {
+                emoji: e[Math.floor(Math.random() * e.length)],
+                clicked: [], players: [...p], started: Date.now(), finished: false
+            };
         },
         renderer: drawSpeed,
         input: handleSpeed
@@ -115,20 +122,21 @@ const GAMES = {
             clues: ['كان في المطبخ', 'لابس اسود', 'طويل', 'صوتو خشن', 'يحب القهوة'],
             votes: {},
             revealed: 0,
-            players: [...p]
+            players: [...p],
+            accused: null, solved: null, finished: false
         }),
         renderer: drawKiller,
         input: handleKiller
     },
     بورصة: {
         name: 'بورصة النقاط', min: 1, max: 1, emoji: '📈', cmd: 'بورصة',
-        init: () => ({ price: 100, trend: 'up', portfolio: 0, cash: 1000, history: [100] }),
+        init: (p) => ({ owner: p[0], price: 100, trend: 'up', portfolio: 0, cash: 1000, history: [100], finished: false }),
         renderer: drawStock,
         input: handleStock
     },
     مملكة: {
         name: 'مملكة الجلادين', min: 5, max: 20, emoji: '👑', cmd: 'مملكة',
-        init: (p) => ({ king: null, rebels: [], army: {}, votes: {}, citizens: [...p], tax: 0 }),
+        init: (p) => ({ king: null, rebels: [], army: {}, votes: {}, citizens: [...p], tax: 0, finished: false, winner: null, previousKing: null }),
         renderer: drawKingdom,
         input: handleKingdom
     }
@@ -156,12 +164,22 @@ function drawXO(ctx, W, H, data) {
 
 function drawMafia(ctx, W, H, data) {
     ctx.fillStyle = data.phase==='night'?'#000000F5':'#1a1a1aF5'; ctx.fillRect(0,0,W,H);
-    ctx.fillStyle = data.phase==='night'?'#8B0000':'#FFD700'; ctx.font = 'bold 70px Cairo'; ctx.textAlign = 'center';
+    ctx.textAlign = 'center';
+    if (data.finished) {
+        ctx.fillStyle = '#FFD700'; ctx.font = 'bold 70px Cairo';
+        ctx.fillText(`الفائز: ${data.winner} 🏆`, W/2, H/2-100);
+        ctx.fillStyle = '#fff'; ctx.font = '35px Cairo';
+        ctx.fillText(`المافيا: ${Object.keys(data.roles).filter(p => data.roles[p] === 'mafia').join(' ، ')}`, W/2, H/2);
+        ctx.fillText(`الأحياء: ${data.alive.join(' ، ')}`, W/2, H/2+70);
+        return;
+    }
+    ctx.fillStyle = data.phase==='night'?'#8B0000':'#FFD700'; ctx.font = 'bold 70px Cairo';
     ctx.fillText(`${data.phase==='night'?'الليل 🌙':'النهار ☀️'} - يوم ${data.day}`, W/2, H/2-150);
     ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText(`الأحياء: ${data.alive.length}`, W/2, H/2-50);
-    if(data.killed) { ctx.fillStyle = '#FF0000'; ctx.fillText(`قتل: ${data.killed} 💀`, W/2, H/2+20); }
+    if(data.lastKilled) { ctx.fillStyle = '#FF0000'; ctx.fillText(`ضحية الليل: ${data.lastKilled} 💀`, W/2, H/2+20); }
     if(data.executed) { ctx.fillStyle = '#FF4500'; ctx.fillText(`أعدم: ${data.executed} ⚖️`, W/2, H/2+70); }
-    ctx.font = '30px Cairo'; ctx.fillStyle = '#888'; ctx.fillText(data.phase==='night'?'.kill اسم':'صوت:.vote اسم', W/2, H/2+140);
+    ctx.font = '30px Cairo'; ctx.fillStyle = '#888';
+    ctx.fillText(data.phase==='night'?'.kill اسم | .save اسم | .nightend':'.vote اسم', W/2, H/2+140);
 }
 
 function drawRPS(ctx, W, H, data) {
@@ -246,14 +264,20 @@ function drawJail(ctx, W, H, data) {
     ctx.font = '45px Cairo'; ctx.fillStyle = '#FF0000'; ctx.textAlign = 'center'; ctx.fillText(`الجلاد: ${data.warden}`, W/2, H/2-100);
     ctx.font = '35px Cairo'; ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.fillText('السجناء:', W/2+200, H/2-30);
     data.prisoners.forEach((p,i) => ctx.fillText(`${i+1}. ${p}`, W/2+200, H/2+10+i*45));
-    if(data.executed) { ctx.textAlign = 'center'; ctx.fillStyle = '#FF0000'; ctx.font = '50px Cairo'; ctx.fillText(`أعدم: ${data.executed} 💀`, W/2, H/2+250); }
-    else { ctx.textAlign = 'center'; ctx.fillStyle = '#888'; ctx.fillText('.اعدام اسم', W/2, H/2+250); }
+    if (data.finished) {
+        ctx.textAlign = 'center'; ctx.fillStyle = '#FFD700'; ctx.font = '45px Cairo';
+        ctx.fillText(data.winner ? `الناجي: ${data.winner} 🏆` : 'لم ينجُ أحد 💀', W/2, H/2+250);
+    } else if(data.executed) {
+        ctx.textAlign = 'center'; ctx.fillStyle = '#FF0000'; ctx.font = '50px Cairo'; ctx.fillText(`أعدم: ${data.executed} 💀`, W/2, H/2+250);
+    } else {
+        ctx.textAlign = 'center'; ctx.fillStyle = '#888'; ctx.fillText('.اعدام اسم', W/2, H/2+250);
+    }
 }
 
 function drawSpeed(ctx, W, H, data) {
     drawBase(ctx, W, H, 'تحدي سرعة ⚡', '#FF0000');
     ctx.font = '150px Cairo'; ctx.textAlign = 'center'; ctx.fillText(data.emoji, W/2, H/2-50);
-    ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText('اكتب الإيموجي بسرعة!', W/2, H/2+100);
+    ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText(data.finished ? 'انتهى التحدي!' : 'اكتب الإيموجي بسرعة!', W/2, H/2+100);
     const sorted = [...data.clicked].sort((a,b)=>a.time-b.time).slice(0,3);
     ctx.font = '30px Cairo'; ctx.fillStyle = '#FFD700'; ctx.textAlign = 'right';
     sorted.forEach((c,i) => ctx.fillText(`${i+1}. ${c.name}: ${(c.time/1000).toFixed(2)}ث`, W/2+300, H/2+160+i*40));
@@ -262,9 +286,20 @@ function drawSpeed(ctx, W, H, data) {
 function drawKiller(ctx, W, H, data) {
     drawBase(ctx, W, H, 'من القاتل 🗡️', '#8B0000');
     ctx.font = '45px Cairo'; ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+    if (data.finished) {
+        ctx.fillStyle = '#FFD700'; ctx.fillText(`القاتل: ${data.killer}`, W/2, H/2-100);
+        ctx.fillStyle = data.solved ? '#00ff88' : '#FF0000'; ctx.font = '40px Cairo';
+        ctx.fillText(data.solved ? 'تم كشف القاتل! 🎉' : 'لم يتم كشف القاتل', W/2, H/2);
+        ctx.font = '30px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText(`اتهام المجموعة: ${data.accused || 'تعادل'}`, W/2, H/2+80);
+        return;
+    }
     if(!data.victim) ctx.fillText('في انتظار جريمة قتل...', W/2, H/2-80);
-    else { ctx.fillStyle = '#FF0000'; ctx.fillText(`الضحية: ${data.victim} 💀`, W/2, H/2-80); ctx.font = '35px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText('الأدلة:', W/2, H/2-20); data.clues.slice(0,data.revealed+1).forEach((c,i) => ctx.fillText(`${i+1}. ${c}`, W/2, H/2+20+i*45)); ctx.fillStyle = '#888'; ctx.fillText('اتهم:.اتهم اسم', W/2, H/2+180); }
-    if(data.killer &&!data.victim) { ctx.font = '25px Cairo'; ctx.fillStyle = '#FF0000'; ctx.fillText('القاتل: اكتب.قتل اسم', W/2, H/2+230); }
+    else {
+        ctx.fillStyle = '#FF0000'; ctx.fillText(`الضحية: ${data.victim} 💀`, W/2, H/2-80);
+        ctx.font = '35px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText('الأدلة:', W/2, H/2-20);
+        data.clues.slice(0,data.revealed+1).forEach((c,i) => ctx.fillText(`${i+1}. ${c}`, W/2, H/2+20+i*45));
+        ctx.fillStyle = '#888'; ctx.fillText('.اتهم اسم', W/2, H/2+180);
+    }
 }
 
 function drawStock(ctx, W, H, data) {
@@ -272,7 +307,7 @@ function drawStock(ctx, W, H, data) {
     ctx.font = '80px Cairo'; ctx.fillStyle = data.trend==='up'?'#00ff88':'#FF0000'; ctx.textAlign = 'center';
     ctx.fillText(`${data.price} ${data.trend==='up'?'▲':'▼'}`, W/2, H/2-80);
     ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText(`محفظتك: ${data.portfolio} سهم`, W/2, H/2);
-    ctx.fillText(`الكاش: ${data.cash} نقطة`, W/2, H/2+50); ctx.fillStyle = '#888'; ctx.fillText('شراء / بيع', W/2, H/2+120);
+    ctx.fillText(`الكاش: ${data.cash} نقطة`, W/2, H/2+50); ctx.fillStyle = '#888'; ctx.fillText(data.finished ? 'انتهت الجولة' : 'شراء / بيع / .end', W/2, H/2+120);
     ctx.strokeStyle = data.trend==='up'?'#00ff88':'#FF0000'; ctx.lineWidth = 4; ctx.beginPath();
     data.history.slice(-10).forEach((p,i) => { const x = W/2-200+i*40; const y = H/2+250-(p-50)*2; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); });
     ctx.stroke();
@@ -280,7 +315,13 @@ function drawStock(ctx, W, H, data) {
 
 function drawKingdom(ctx, W, H, data) {
     drawBase(ctx, W, H, 'مملكة الجلادين 👑', '#FFD700');
-    ctx.font = '50px Cairo'; ctx.fillStyle = '#FFD700'; ctx.textAlign = 'center'; ctx.fillText(`الملك: ${data.king || 'لا أحد'}`, W/2, H/2-100);
+    ctx.font = '50px Cairo'; ctx.fillStyle = '#FFD700'; ctx.textAlign = 'center';
+    if (data.finished) {
+        ctx.fillText(`سقطت مملكة ${data.previousKing || 'الجلادين'}!`, W/2, H/2-70);
+        ctx.fillStyle = '#00ff88'; ctx.font = '45px Cairo'; ctx.fillText('فاز المتمردون 👑', W/2, H/2+30);
+        return;
+    }
+    ctx.fillText(`الملك: ${data.king || 'لا أحد'}`, W/2, H/2-100);
     ctx.font = '35px Cairo'; ctx.fillStyle = '#FF0000'; ctx.fillText(`المتمردين: ${data.rebels.length}`, W/2, H/2-30);
     ctx.fillStyle = '#00ff88'; ctx.fillText(`جيش الملك: ${Object.values(data.army).reduce((a,b)=>a+b,0)}`, W/2, H/2+20);
     ctx.fillStyle = '#888'; ctx.fillText('ولاء / انقلاب / جيش', W/2, H/2+100);
@@ -301,22 +342,63 @@ function handleXO(msg, data, player) {
 }
 
 function handleMafia(msg, data, player) {
-    if (data.phase === 'night' && data.roles[player] === 'mafia' && msg.startsWith('.kill ')) {
-        const target = msg.split(' ')[1]; if (data.alive.includes(target) && target!== player) data.killed = target;
+    if (data.finished || !data.alive.includes(player)) return;
+
+    if (data.phase === 'night') {
+        if (data.roles[player] === 'mafia' && msg.startsWith('.kill ')) {
+            const target = msg.slice(6).trim();
+            if (data.alive.includes(target) && data.roles[target] !== 'mafia' && target !== player) data.killed = target;
+        }
+        if (data.roles[player] === 'doctor' && msg.startsWith('.save ')) {
+            const target = msg.slice(6).trim();
+            if (data.alive.includes(target)) data.saved = target;
+        }
+        if (data.roles[player] === 'mafia' && msg === '.nightend') {
+            data.lastKilled = data.killed && data.killed !== data.saved ? data.killed : null;
+            if (data.lastKilled) data.alive = data.alive.filter(p => p !== data.lastKilled);
+            data.killed = null;
+            data.saved = null;
+            data.executed = null;
+            data.phase = 'day';
+            data.day++;
+            data.votes = {};
+            updateMafiaWinner(data);
+        }
+        return;
     }
+
     if (data.phase === 'day' && msg.startsWith('.vote ')) {
-        const target = msg.split(' ')[1]; if (data.alive.includes(target)) data.votes[player] = target;
+        const target = msg.slice(6).trim();
+        if (data.alive.includes(target)) data.votes[player] = target;
+        const requiredVotes = Math.ceil(data.alive.length / 2);
+        if (Object.keys(data.votes).length >= requiredVotes) {
+            const counts = {};
+            Object.values(data.votes).forEach(v => counts[v] = (counts[v] || 0) + 1);
+            const max = Math.max(...Object.values(counts));
+            const leaders = Object.keys(counts).filter(name => counts[name] === max);
+            const executed = leaders.length === 1 ? leaders[0] : null;
+            if (executed) {
+                data.alive = data.alive.filter(p => p !== executed);
+                data.executed = executed;
+            } else {
+                data.executed = null;
+            }
+            data.phase = 'night';
+            data.votes = {};
+            updateMafiaWinner(data);
+        }
     }
-    if (data.phase === 'night' && data.killed) {
-        if (data.roles[data.killed]!== 'doctor') data.alive = data.alive.filter(p => p!== data.killed);
-        data.phase = 'day'; data.day++; data.votes = {}; data.killed = null;
-    }
-    if (data.phase === 'day' && Object.keys(data.votes).length >= data.alive.length / 2) {
-        const counts = {}; Object.values(data.votes).forEach(v => counts[v] = (counts[v]||0)+1);
-        const max = Math.max(...Object.values(counts));
-        const executed = Object.keys(counts).find(k => counts[k] === max);
-        if (executed) { data.alive = data.alive.filter(p => p!== executed); data.executed = executed; }
-        data.phase = 'night'; data.votes = {};
+}
+
+function updateMafiaWinner(data) {
+    const mafiaCount = data.alive.filter(p => data.roles[p] === 'mafia').length;
+    const citizenCount = data.alive.length - mafiaCount;
+    if (mafiaCount === 0) {
+        data.finished = true;
+        data.winner = 'القرويون';
+    } else if (mafiaCount >= citizenCount) {
+        data.finished = true;
+        data.winner = 'المافيا';
     }
 }
 
@@ -334,8 +416,12 @@ function handleRPS(msg, data, player) {
 }
 
 function handleGuess(msg, data, player) {
-    const n = parseInt(msg);
-    if (n >= 1 && n <= 100 &&!data.winner) { data.attempts[player] = n; if (n === data.secret) data.winner = player; }
+    if (!/^\\d+$/.test(msg) || data.winner) return;
+    const n = Number(msg);
+    if (n >= 1 && n <= 100) {
+        data.attempts[player] = n;
+        if (n === data.secret) data.winner = player;
+    }
 }
 
 function handleWord(msg, data) {
@@ -366,7 +452,7 @@ function handleWheel(msg, data) {
 
 function handleQuiz(msg, data, player) { if (msg.trim() === data.a &&!data.winner) data.winner = player; }
 
-function handleTyping(msg, data, player) { if (!data.finished && msg === data.text && !data.times[player]) { data.times[player] = Date.now() - data.started; if (Object.keys(data.times).length >= 2) data.finished = true; } }
+function handleTyping(msg, data, player) { if (!data.finished && msg === data.text && !Object.prototype.hasOwnProperty.call(data.times, player)) { data.times[player] = Date.now() - data.started; if (Object.keys(data.times).length >= 2) data.finished = true; } }
 
 function handleWords(msg, data, player) { if (!data.ended && Date.now() - data.started < data.timeLeft * 1000) data.words[player] = (data.words[player] || 0) + msg.trim().split(/\s+/).filter(w=>w).length; }
 
@@ -380,22 +466,57 @@ function handleTreasure(msg, data) {
 }
 
 function handleJail(msg, data, player) {
-    if (msg.startsWith('.اعدام ') && player === data.warden &&!data.executed) {
-        const target = msg.split(' ')[1];
-        if (data.prisoners.includes(target)) { data.executed = target; data.prisoners = data.prisoners.filter(p => p!== target); }
+    if (data.finished || !msg.startsWith('.اعدام ') || player !== data.warden) return;
+    const target = msg.slice(7).trim();
+    if (data.prisoners.includes(target)) {
+        data.executed = target;
+        data.prisoners = data.prisoners.filter(p => p !== target);
+        if (data.prisoners.length <= 1) {
+            data.finished = true;
+            data.winner = data.prisoners[0] || null;
+        }
     }
 }
 
-function handleSpeed(msg, data, player) { if (msg === data.emoji &&!data.clicked.find(c => c.name === player)) data.clicked.push({ name: player, time: Date.now() - data.started }); }
+function handleSpeed(msg, data, player) {
+    if (data.finished || msg !== data.emoji || !data.players.includes(player) || data.clicked.some(c => c.name === player)) return;
+    data.clicked.push({ name: player, time: Date.now() - data.started });
+    if (data.clicked.length >= data.players.length) data.finished = true;
+}
 
 function handleKiller(msg, data, player) {
-    if (msg.startsWith('.قتل ') && player === data.killer &&!data.victim) {
-        const target = msg.split(' ')[1]; if (data.players.includes(target) && target!== data.killer) { data.victim = target; data.revealed = 1; }
+    if (data.finished || !data.players.includes(player)) return;
+    if (msg.startsWith('.قتل ') && player === data.killer && !data.victim) {
+        const target = msg.slice(5).trim();
+        if (data.players.includes(target) && target !== data.killer) {
+            data.victim = target;
+            data.revealed = 1;
+        }
+        return;
     }
-    if (msg.startsWith('.اتهم ') && data.victim) { data.votes[player] = msg.split(' ')[1]; if (Object.keys(data.votes).length >= data.players.length - 2) data.revealed++; }
+    if (msg.startsWith('.اتهم ') && data.victim && !Object.prototype.hasOwnProperty.call(data.votes, player)) {
+        const target = msg.slice(6).trim();
+        if (!data.players.includes(target)) return;
+        data.votes[player] = target;
+        data.revealed = Math.min(data.clues.length - 1, data.revealed + 1);
+        if (Object.keys(data.votes).length >= data.players.length) {
+            const counts = {};
+            Object.values(data.votes).forEach(name => counts[name] = (counts[name] || 0) + 1);
+            const max = Math.max(...Object.values(counts));
+            const leaders = Object.keys(counts).filter(name => counts[name] === max);
+            data.accused = leaders.length === 1 ? leaders[0] : null;
+            data.solved = data.accused === data.killer;
+            data.finished = true;
+        }
+    }
 }
 
-function handleStock(msg, data) {
+function handleStock(msg, data, player) {
+    if (data.finished || player !== data.owner) return;
+    if (msg === '.end') {
+        data.finished = true;
+        return;
+    }
     if (msg !== 'شراء' && msg !== 'بيع') return;
     const previousPrice = data.price;
     if (msg === 'شراء' && data.cash >= data.price) { data.portfolio++; data.cash -= data.price; data.price += Math.floor(Math.random()*10)+1; }
@@ -408,12 +529,15 @@ function handleStock(msg, data) {
 }
 
 function handleKingdom(msg, data, player) {
-    if (msg === 'ولاء' &&!data.king && data.citizens.includes(player)) data.king = player;
-    if (msg === 'انقلاب' &&!data.rebels.includes(player) && player!== data.king) data.rebels.push(player);
+    if (data.finished) return;
+    if (msg === 'ولاء' && !data.king && data.citizens.includes(player)) data.king = player;
+    if (msg === 'انقلاب' && !data.rebels.includes(player) && player !== data.king) data.rebels.push(player);
     if (msg === 'جيش' && player === data.king) { data.army[player] = (data.army[player] || 0) + 1; data.tax += 10; }
     if (msg === 'ضريبة' && player === data.king) { data.tax += 50; }
     if (data.king && data.rebels.length > (data.army[data.king] || 0)) {
-        data.king = null; data.rebels = []; data.army = {}; data.tax = 0;
+        data.previousKing = data.king;
+        data.winner = 'المتمردون';
+        data.finished = true;
     }
 }
 

@@ -4,6 +4,7 @@ const { GAMES } = require('./games');
 const express = require('express');
 const ffmpeg = require('fluent-ffmpeg');
 const fs = require('fs');
+const { PassThrough } = require('stream');
 
 const VIDEO_ID = process.env.YOUTUBE_VIDEO_ID;
 const YT_RTMP = process.env.YOUTUBE_RTMP; // rtmp://a.rtmp.youtube.com/live2/xxxx-xxxx-xxxx-xxxx
@@ -16,6 +17,15 @@ catch(e) { console.log('الخط Cairo غير موجود، يستعمل الاف
 
 // ضد النوم
 app.get('/health', (req, res) => res.send('♾️ حي'));
+app.get('/status', (req, res) => res.json({
+    ok: true,
+    mode: STATE.mode,
+    game: STATE.game,
+    players: STATE.lobby.players.length,
+    streamConfigured: Boolean(YT_RTMP),
+    streamRunning: Boolean(ffmpegProcess),
+    lastActivity: STATE.lastActivity
+}));
 app.get('/', (req, res) => res.send('Infinity Gen ♾️ 16 لعبة شغالة'));
 setInterval(() => {
     if(process.env.RENDER_EXTERNAL_URL) {
@@ -33,6 +43,10 @@ let STATE = {
 };
 
 let ffmpegProcess = null;
+let overlayInput = null;
+let overlayCanWrite = true;
+let lobbyTimer = null;
+let endTimer = null;
 
 // الرسم الرئيسي
 function drawOverlay() {
@@ -65,7 +79,17 @@ function drawOverlay() {
     ctx.fillText('صنع في قالمة 🇩🇿 | Render مجاني ♾️ | 16 لعبة', W/2, H-12);
 
     if (!fs.existsSync('./public')) fs.mkdirSync('./public');
-    fs.writeFileSync('./public/overlay.png', canvas.toBuffer('image/png'));
+    const frame = canvas.toBuffer('image/png');
+    fs.writeFileSync('./public/overlay.png', frame);
+
+    // Feed each newly rendered frame to FFmpeg; changing a PNG file on disk
+    // does not refresh an image input that FFmpeg has already opened.
+    if (overlayInput && !overlayInput.destroyed && overlayCanWrite) {
+        overlayCanWrite = overlayInput.write(frame);
+        if (!overlayCanWrite) {
+            overlayInput.once('drain', () => { overlayCanWrite = true; });
+        }
+    }
 }
 
 function drawIdleScreen(ctx, W, H) {
@@ -96,21 +120,35 @@ function drawLobbyScreen(ctx, W, H) {
     });
 }
 
-setInterval(drawOverlay, 1000); // 1fps كافي للبث
+setInterval(() => {
+    // Time-based state changes belong in the game tick, not in a renderer.
+    if (STATE.mode === 'game' && STATE.game === 'كلمات' && !STATE.data.ended &&
+        Date.now() - STATE.data.started >= STATE.data.timeLeft * 1000) {
+        STATE.data.ended = true;
+        showToast('انتهت حرب الكلمات!');
+        scheduleGameReset();
+    }
+    drawOverlay();
+}, 1000); // 1fps كافي للبث
 
 // البث المباشر بـ FFmpeg
 function startStream() {
-    if (ffmpegProcess ||!YT_RTMP) return;
+    if (ffmpegProcess || !YT_RTMP) return;
     console.log('♾️ بدء البث المباشر...');
 
-    // إنشاء فيديو أسود 24 ساعة كمصدر
+    // A live PNG stream is required: FFmpeg does not re-open overlay.png
+    // every time the file is overwritten.
+    overlayInput = new PassThrough({ highWaterMark: 4 * 1024 * 1024 });
+    overlayCanWrite = true;
+
     ffmpegProcess = ffmpeg()
        .input('color=c=black:s=1920x1080:r=30')
        .inputFormat('lavfi')
        .input('anullsrc=channel_layout=stereo:sample_rate=44100')
        .inputFormat('lavfi')
-       .input('./public/overlay.png')
-       .inputOptions(['-stream_loop -1', '-re'])
+       .input(overlayInput)
+       .inputFormat('image2pipe')
+       .inputOptions(['-framerate 1', '-vcodec png', '-re'])
        .complexFilter([
             '[0:v][2:v] overlay=0:0:format=auto:shortest=1[out]'
         ])
@@ -124,8 +162,20 @@ function startStream() {
         ])
        .output(YT_RTMP)
        .on('start', () => console.log('🔥 البث بدأ'))
-       .on('error', (err) => { console.log('FFmpeg Error:', err.message); ffmpegProcess = null; })
-       .on('end', () => { console.log('البث توقف'); ffmpegProcess = null; })
+       .on('error', (err) => {
+            console.log('FFmpeg Error:', err.message);
+            ffmpegProcess = null;
+            if (overlayInput) overlayInput.destroy();
+            overlayInput = null;
+            overlayCanWrite = true;
+       })
+       .on('end', () => {
+            console.log('البث توقف');
+            ffmpegProcess = null;
+            if (overlayInput) overlayInput.destroy();
+            overlayInput = null;
+            overlayCanWrite = true;
+       })
        .run();
 }
 
@@ -149,7 +199,11 @@ async function main() {
                 STATE.data = GAMES[gameKey].init([author]);
                 STATE.lobby = { host: author, players: [author], startTime: Date.now() };
                 showToast(`غرفة ${GAMES[gameKey].name} فتحت`);
-                setTimeout(() => startGame(), 30000);
+                const lobbyStartedAt = STATE.lobby.startTime;
+                lobbyTimer = setTimeout(() => {
+                    lobbyTimer = null;
+                    if (STATE.mode === 'lobby' && STATE.lobby.startTime === lobbyStartedAt) startGame();
+                }, 30000);
             }
         }
 
@@ -165,9 +219,7 @@ async function main() {
         if (STATE.mode === 'game' && GAMES[STATE.game]) {
             GAMES[STATE.game].input(msg, STATE.data, author);
             // إنهاء تلقائي للعبة
-            if (checkGameEnd(STATE.game, STATE.data)) {
-                setTimeout(() => resetGame(), 5000);
-            }
+            if (checkGameEnd(STATE.game, STATE.data)) scheduleGameReset();
         }
 
         // إلغاء
@@ -182,6 +234,8 @@ async function main() {
 
 function startGame() {
     if (STATE.mode!== 'lobby') return;
+    if (lobbyTimer) clearTimeout(lobbyTimer);
+    lobbyTimer = null;
     if (STATE.lobby.players.length < GAMES[STATE.game].min) {
         showToast('لاعبين غير كافيين'); resetGame(); return;
     }
@@ -190,7 +244,19 @@ function startGame() {
     showToast(`لعبة ${GAMES[STATE.game].name} بدأت!`);
 }
 
+function scheduleGameReset() {
+    if (endTimer) return;
+    endTimer = setTimeout(() => {
+        endTimer = null;
+        resetGame();
+    }, 5000);
+}
+
 function resetGame() {
+    if (lobbyTimer) clearTimeout(lobbyTimer);
+    if (endTimer) clearTimeout(endTimer);
+    lobbyTimer = null;
+    endTimer = null;
     STATE = { mode: 'idle', game: null, data: {}, lobby: {host:'',players:[],startTime:0}, toast: STATE.toast, lastActivity: Date.now() };
     showToast('انتهت اللعبة');
 }
@@ -204,7 +270,9 @@ function checkGameEnd(game, data) {
     if (game === 'سؤال') return data.winner!== null;
     if (game === 'كنز') return data.found;
     if (game === 'عجلة') return data.result!== null;
-    if (game === 'كلمات') return data.ended;
+    if (game === 'كلمة') return Boolean(data.winner) || data.wrong >= 6;
+    if (game === 'كتابة') return Boolean(data.finished);
+    if (game === 'كلمات') return Boolean(data.ended);
     if (game === 'مليون') return data.q >= data.questions.length;
     return false;
 }

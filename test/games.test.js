@@ -37,7 +37,7 @@ test('The word game detects a solved word', () => {
 });
 
 test('Typing race requires two distinct finishers', () => {
-  const data = GAMES.كتابة.init([]);
+  const data = GAMES.كتابة.init(["Alice", "Bob"]);
   GAMES.كتابة.input(data.text, data, 'Alice');
   GAMES.كتابة.input(data.text, data, 'Alice');
   assert.equal(Object.keys(data.times).length, 1);
@@ -132,4 +132,33 @@ test('Speed renderer does not reorder the stored click list', () => {
   const ctx = new Proxy({}, { get: () => () => {} });
   GAMES.سرعة.renderer(ctx, 1920, 1080, data);
   assert.deepEqual(data.clicked, before);
+});
+
+test('Wheel is controlled by the lobby owner', () => {
+  const data = GAMES.عجلة.init(['owner']);
+  GAMES.عجلة.input('لف', data, 'visitor');
+  assert.equal(data.spinning, false);
+  assert.equal(data.result, null);
+});
+
+test('Million quiz ignores answers from other viewers', () => {
+  const data = GAMES.مليون.init(['owner']);
+  GAMES.مليون.input('2', data, 'visitor');
+  assert.equal(data.q, 0);
+  GAMES.مليون.input('2', data, 'owner');
+  assert.equal(data.q, 1);
+});
+
+test('Treasure hunt is controlled by the lobby owner', () => {
+  const data = GAMES.كنز.init(['owner']);
+  GAMES.كنز.input('يمين', data, 'visitor');
+  assert.equal(data.pos, 0);
+  GAMES.كنز.input('يمين', data, 'owner');
+  assert.equal(data.pos, 1);
+});
+
+test('Only registered kingdom players can rebel', () => {
+  const data = GAMES.مملكة.init(['A', 'B', 'C', 'D', 'E']);
+  GAMES.مملكة.input('انقلاب', data, 'visitor');
+  assert.deepEqual(data.rebels, []);
 });

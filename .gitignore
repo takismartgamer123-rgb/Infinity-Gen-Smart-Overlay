@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+!**/.env.example
+data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+ultra/public/overlay.png
+npm-debug.log*

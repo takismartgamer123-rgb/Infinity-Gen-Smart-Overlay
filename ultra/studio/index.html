@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090713">
+  <title>Infinity Gen Ultra Studio</title>
+  <link rel="stylesheet" href="/studio/style.css">
+</head>
+<body>
+  <div class="aurora aurora-one"></div><div class="aurora aurora-two"></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="/studio/"><span class="brand-mark">∞</span><span><b>INFINITY GEN</b><small>ULTRA STUDIO</small></span></a>
+      <div class="side-label">WORKSPACE</div>
+      <a class="nav active" href="#overview">◈ <span>Overview</span></a>
+      <a class="nav" href="#games">▣ <span>Game Library</span></a>
+      <a class="nav" href="#missions">✦ <span>Community Missions</span></a>
+      <a class="nav" href="#store">◇ <span>Ultra Store</span></a>
+      <div class="side-bottom">
+        <div class="powered">POWERED BY<br><strong>GAMMA AURORA</strong></div>
+        <div class="small-muted">No pay-to-win.<br>Community first.</div>
+      </div>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><p class="eyebrow">CONTROL CENTER / ULTRA</p><h1>Studio Overview</h1></div>
+        <div class="top-actions"><span id="connection" class="status"><i></i> Connecting</span><button class="button ghost" id="token-toggle">Admin Access</button></div>
+      </header>
+      <section id="overview" class="metrics">
+        <article class="metric"><span>ENGINE STATUS</span><strong id="engine-status">Checking…</strong><small id="uptime">—</small></article>
+        <article class="metric"><span>ACTIVE GAME</span><strong id="active-game">Idle</strong><small id="active-phase">Waiting for a session</small></article>
+        <article class="metric"><span>PARTICIPANTS</span><strong id="participant-count">0</strong><small>Current lobby / round</small></article>
+        <article class="metric"><span>COMMUNITY LEVEL</span><strong id="community-level">1</strong><small id="world-progress">World mission progress</small></article>
+      </section>
+      <section class="panel live-panel">
+        <div class="panel-heading"><div><p class="eyebrow">LIVE CONTROL</p><h2>Session Control</h2></div><span class="pill" id="phase-pill">IDLE</span></div>
+        <div class="live-content"><div><div class="live-title" id="live-title">Infinity Gen is ready</div><p id="live-description">Choose a game to open a community lobby.</p></div><div class="live-controls"><button class="button danger" id="stop-game">Stop Session</button><a class="button secondary" target="_blank" rel="noreferrer" href="/overlay/">Open Overlay ↗</a></div></div>
+        <div id="notice" class="notice" aria-live="polite">Connect the Studio to your local Ultra engine.</div>
+      </section>
+      <section id="games" class="section">
+        <div class="section-heading"><div><p class="eyebrow">16 COMMUNITY EXPERIENCES</p><h2>Game Library</h2></div><span class="muted">Clean, cooperative and fair</span></div>
+        <div class="game-grid" id="game-grid"><div class="skeleton">Loading game catalog…</div></div>
+      </section>
+      <section id="missions" class="section">
+        <div class="section-heading"><div><p class="eyebrow">EVERY ACTION COUNTS</p><h2>Community Missions</h2></div><span class="muted">Shared rewards for eligible contributors</span></div>
+        <div class="mission-grid" id="mission-grid"></div>
+        <form class="panel mission-form" id="mission-form">
+          <div><p class="eyebrow">MISSION BUILDER</p><h3>Create a community mission</h3></div>
+          <label>Title<input name="title" maxlength="80" required placeholder="Power the next portal"></label>
+          <label>Description<input name="description" maxlength="220" required placeholder="Complete verified actions together"></label>
+          <div class="form-row"><label>Scope<select name="scope"><option value="live">Live</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="world">World</option></select></label><label>Target<input name="target" type="number" min="1" max="1000000" value="100" required></label><label>Reward IC<input name="rewardCoins" type="number" min="0" max="10000" value="50"></label><label>Reward XP<input name="rewardXp" type="number" min="0" max="10000" value="50"></label></div>
+          <button class="button primary" type="submit">Create Mission</button>
+        </form>
+      </section>
+      <section id="store" class="section">
+        <div class="section-heading"><div><p class="eyebrow">EARN • COLLECT • CRAFT</p><h2>Ultra Store</h2></div><span class="muted">Virtual points only · no cash · no transfers</span></div>
+        <div class="store-grid" id="store-grid"><div class="skeleton">Loading catalog…</div></div>
+        <div class="panel store-note"><span class="note-icon">◇</span><div><b>Fair progression</b><p>Infinity Coins come from verified game actions and community missions. Items are cosmetic, collectible or optional utility; nothing sells a guaranteed win.</p></div></div>
+      </section>
+      <footer>INFINITY GEN ULTRA <span>•</span> GAMMA AURORA <span>•</span> Built for community play</footer>
+    </main>
+  </div>
+  <dialog id="access-dialog">
+    <form method="dialog" class="dialog-card" id="access-form">
+      <button class="close" value="cancel" aria-label="Close">×</button><p class="eyebrow">SECURE CONTROL</p><h2>Admin Access</h2>
+      <p class="muted">The token stays in this browser session and is sent only to this engine.</p>
+      <label>Admin token<input id="admin-token" type="password" autocomplete="off" placeholder="Paste ADMIN_TOKEN"></label>
+      <button class="button primary" id="save-token" value="save">Save token</button>
+    </form>
+  </dialog>
+  <script src="/studio/app.js" defer></script>
+</body>
+</html>

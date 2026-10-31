@@ -1,108 +1,41 @@
-# Infinity Gen Smart Overlay
+# Infinity Gen Ultra
 
-**Interactive YouTube Live Chat games rendered as a 1920×1080 stream overlay.**
+**Play Together. Build Together. Explore Infinity.**
 
-Infinity Gen connects a YouTube live chat reader to a small game engine. Chat commands update game state, the Canvas renderer produces PNG frames, and FFmpeg composites those frames over a background and sends the result to an RTMP destination.
+Infinity Gen Ultra is the community-first remake of Infinity Gen Smart Overlay, developed in a separate branch and directory so the earlier prototype remains available.
 
-> This is an experimental revival branch. Test on an unlisted/private stream before using it for a public broadcast.
+- **16 cooperative games** with controlled inputs and no player-targeted elimination.
+- **Community Missions** for live, daily, weekly and world progress.
+- **Infinity Coins, XP, levels and achievements** with a durable transaction ledger.
+- **Ultra Store** for cosmetics, collectibles, optional utilities and deterministic crafting.
+- **Gamma Aurora Studio and Overlay** with a server-rendered 1920×1080 PNG scene.
+- **Optional YouTube Live Chat and FFmpeg publisher** modules.
 
-## Runtime
+## Quick start
 
-- Node.js **22.x or 24.x**
-- FFmpeg
-- Native build dependencies for `node-canvas`:
-  - `libcairo2-dev`
-  - `libpango1.0-dev`
-  - `libjpeg-dev`
-  - `libgif-dev`
-  - `librsvg2-dev`
-- Cairo font at `fonts/Cairo-Bold.ttf` (the renderer falls back if it is missing)
+Requirements: Node.js 22.13+, FFmpeg only when publishing, and Cairo/Pango development libraries for Canvas.
 
-On Debian/Ubuntu-based systems:
-
-```bash
-sudo apt update
+~~~sh
 sudo apt install ffmpeg libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
 npm install
-```
+cp ultra/.env.example .env
+~~~
 
-## Configuration
+Set ADMIN_TOKEN in .env before exposing the server, then run npm start.
 
-Set these environment variables before starting:
+Studio: http://localhost:3000/studio/  
+Overlay: http://localhost:3000/overlay/
 
-| Variable | Required | Description |
-|---|---:|---|
-| `YOUTUBE_VIDEO_ID` | Yes | ID of the active YouTube live stream whose chat should be read |
-| `YOUTUBE_RTMP` | For RTMP output | Full YouTube RTMP ingest URL including the private stream key |
-| `PORT` | No | HTTP port; defaults to `3000` |
+Read the full setup, command reference, architecture and operational cautions in ultra/README.md.
 
-**Keep the RTMP stream key private.** Do not commit it to Git or paste it into public issues.
+## Branch safety
 
-Example:
+The remake is developed on remake-ultra. The earlier main and revival-v6-core branches are not modified by this branch's work. The previous all-in-one prototype files remain in the repository for comparison and fallback.
 
-```bash
-export YOUTUBE_VIDEO_ID="YOUR_LIVE_VIDEO_ID"
-export YOUTUBE_RTMP="rtmp://a.rtmp.youtube.com/live2/YOUR_PRIVATE_STREAM_KEY"
-npm start
-```
+## Important
 
-## Chat commands
+This branch is a substantial implementation foundation, not a claim of production readiness. Real YouTube chat, Canvas native builds, FFmpeg/RTMP publishing, restart recovery and long-duration hosting still require integration testing.
 
-Open a game from the idle screen:
+## Identity
 
-```text
-.start xo
-.start مافيا
-.start rps
-.start تخمين
-.start كلمة
-.start عجلة
-.start سؤال
-.start كتابة
-.start كلمات
-.start مليون
-.start كنز
-.start سجن
-.start سرعة
-.start قاتل
-.start بورصة
-.start مملكة
-```
-
-During the 30-second lobby countdown, viewers listed as players can join with:
-
-```text
-ادخل
-```
-
-The lobby host can stop the current session with:
-
-```text
-.stop
-```
-
-Game-specific commands are shown by the relevant game renderer where available. Some games are still being balanced and need live-chat testing.
-
-## HTTP endpoints
-
-- `/` — basic server response
-- `/health` — health check
-- `/status` — JSON runtime status
-- `/overlay.png` — latest locally rendered overlay frame
-
-## Development checks
-
-Run the built-in regression suite:
-
-```bash
-npm test
-```
-
-The tests cover game input validation, winner detection, ownership restrictions, selected round transitions, and renderer state safety.
-
-## Current limitations
-
-- The YouTube Live Chat connection must still be verified against a real unlisted test stream; the current integration uses `masterchat`.
-- Mafia currently has no private role-delivery mechanism. Do not treat it as ready for a public game until role delivery is redesigned or authenticated private messaging is added.
-- FFmpeg/RTMP output must be tested with the target hosting environment and stream settings.
-- The 5-minute session guard is a fallback so an unfinished round cannot occupy the game slot forever.
+**Made for community play. Powered by Gamma Aurora.**

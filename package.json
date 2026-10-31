@@ -1,26 +1,22 @@
 {
-  "name": "infinity-gen-allinone",
-  "version": "5.0.2",
+  "name": "infinity-gen-ultra",
+  "version": "1.0.0-remake",
+  "private": false,
+  "description": "Community-first interactive live games, missions and Gamma Aurora broadcast overlay.",
+  "main": "ultra/src/index.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "npm install",
-    "test": "node --test"
+    "start": "node ultra/src/index.js",
+    "dev": "node --watch ultra/src/index.js",
+    "legacy:start": "node server.js",
+    "test": "node --test",
+    "check": "node --check ultra/src/config.js && node --check ultra/src/index.js && node --check ultra/src/server.js && node --check ultra/src/games.js && node --check ultra/src/game-engine.js && node --check ultra/src/persistence.js && node --check ultra/src/security.js && node --check ultra/src/economy.js && node --check ultra/src/missions.js && node --check ultra/src/progression.js && node --check ultra/src/store.js && node --check ultra/src/chat-adapter.js && node --check ultra/src/renderer.js && node --check ultra/src/publisher.js && node --check ultra/studio/app.js && node --check ultra/overlay/app.js"
   },
-  "engines": {
-    "node": "22.x || 24.x"
-  },
+  "engines": { "node": ">=22.13.0 <25" },
   "dependencies": {
     "masterchat": "^1.1.0",
     "canvas": "^2.11.2",
     "express": "^4.19.2",
-    "fluent-ffmpeg": "^2.1.3"
-  },
-  "aptPackages": [
-    "libcairo2-dev",
-    "libpango1.0-dev",
-    "libjpeg-dev",
-    "libgif-dev",
-    "librsvg2-dev",
-    "ffmpeg"
-  ]
+    "fluent-ffmpeg": "^2.1.3",
+    "ws": "^8.18.0"
+  }
 }

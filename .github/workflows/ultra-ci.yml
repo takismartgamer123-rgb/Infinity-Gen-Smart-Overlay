@@ -1,0 +1,22 @@
+name: Infinity Gen Ultra CI
+on:
+  push:
+    branches: [main, revival-v6-core, remake-ultra]
+  pull_request:
+    branches: [main, revival-v6-core, remake-ultra]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install system libraries for Canvas
+        run: sudo apt-get update && sudo apt-get install -y libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev
+      - name: Install dependencies
+        run: npm install
+      - name: Syntax check
+        run: npm run check
+      - name: Test suite
+        run: npm test

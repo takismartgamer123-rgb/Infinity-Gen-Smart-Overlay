@@ -547,7 +547,7 @@ function handleStock(msg, data, player) {
 function handleKingdom(msg, data, player) {
     if (data.finished) return;
     if (msg === 'ولاء' && !data.king && data.citizens.includes(player)) data.king = player;
-    if (msg === 'انقلاب' && !data.rebels.includes(player) && player !== data.king) data.rebels.push(player);
+    if (msg === 'انقلاب' && data.citizens.includes(player) && !data.rebels.includes(player) && player !== data.king) data.rebels.push(player);
     if (msg === 'جيش' && player === data.king) { data.army[player] = (data.army[player] || 0) + 1; data.tax += 10; }
     if (msg === 'ضريبة' && player === data.king) { data.tax += 50; }
     if (data.king && data.rebels.length > (data.army[data.king] || 0)) {

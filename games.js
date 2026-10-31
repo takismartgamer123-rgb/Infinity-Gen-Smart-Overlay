@@ -416,7 +416,7 @@ function handleRPS(msg, data, player) {
 }
 
 function handleGuess(msg, data, player) {
-    if (!/^\\d+$/.test(msg) || data.winner) return;
+    if (!/^\d+$/.test(msg) || data.winner) return;
     const n = Number(msg);
     if (n >= 1 && n <= 100) {
         data.attempts[player] = n;

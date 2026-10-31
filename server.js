@@ -128,6 +128,14 @@ setInterval(() => {
         showToast('انتهت حرب الكلمات!');
         scheduleGameReset();
     }
+    if (STATE.mode === 'game' && checkGameEnd(STATE.game, STATE.data)) {
+        scheduleGameReset();
+    }
+    if (STATE.mode === 'game' && STATE.data.startedAt &&
+        Date.now() - STATE.data.startedAt >= 5 * 60 * 1000 && !endTimer) {
+        showToast('انتهت المدة القصوى للجولة');
+        scheduleGameReset();
+    }
     drawOverlay();
 }, 1000); // 1fps كافي للبث
 
@@ -241,6 +249,7 @@ function startGame() {
     }
     STATE.mode = 'game';
     STATE.data = GAMES[STATE.game].init(STATE.lobby.players);
+    STATE.data.startedAt = Date.now();
     showToast(`لعبة ${GAMES[STATE.game].name} بدأت!`);
 }
 
@@ -273,6 +282,8 @@ function checkGameEnd(game, data) {
     if (game === 'كلمة') return Boolean(data.winner) || data.wrong >= 6;
     if (game === 'كتابة') return Boolean(data.finished);
     if (game === 'كلمات') return Boolean(data.ended);
+    if (game === 'mafia' || game === 'سجن' || game === 'سرعة' ||
+        game === 'قاتل' || game === 'بورصة' || game === 'مملكة') return Boolean(data.finished);
     if (game === 'مليون') return data.q >= data.questions.length;
     return false;
 }

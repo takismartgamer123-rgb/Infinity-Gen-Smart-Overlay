@@ -6,7 +6,7 @@
     "build": "npm install"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x || 24.x"
   },
   "dependencies": {
     "masterchat": "^1.1.0",

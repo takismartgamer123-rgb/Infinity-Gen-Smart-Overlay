@@ -24,19 +24,22 @@ class UltraStore {
   constructor(db){this.db=db;}
   catalog(communityLevel){const level=Number(communityLevel||1);return ITEMS.filter((item)=>!item.unlockLevel||item.unlockLevel<=level);}
   inventory(userId){return this.db.all('SELECT item_id,quantity,equipped,acquired_at FROM inventory WHERE user_id=? AND quantity>0 ORDER BY acquired_at DESC',[safeId(userId)]);}
-  purchase(user,itemId,communityLevel){
+  purchase(user,itemId,communityLevel,idempotencyKey){
     const item=ITEMS.find((entry)=>entry.id===itemId);if(!item)throw new Error('Unknown store item.');
     if(item.unlockLevel&&item.unlockLevel>Number(communityLevel||1))throw new Error('This item is locked by community progression.');
     return this.db.transaction(()=>{
-      const profile=this.db.ensureUser(user);const balance=Number(this.db.get('SELECT balance FROM wallets WHERE user_id=?',[profile.id]).balance);
+      const profile=this.db.ensureUser(user);const idempotency=String(idempotencyKey||('store-buy:'+crypto.randomUUID()));
+      const prior=this.db.get('SELECT id,user_id,reference,balance_after FROM transactions WHERE idempotency_key=?',[idempotency]);
+      if(prior){if(prior.user_id!==profile.id||prior.reference!==item.id)throw new Error('Idempotency key conflict.');return{item:item,balance:Number(prior.balance_after),applied:false};}
+      const balance=Number(this.db.get('SELECT balance FROM wallets WHERE user_id=?',[profile.id]).balance);
       if(balance<item.price)throw new Error('Not enough Infinity Coins.');
-      const idempotency='store-buy:'+crypto.randomUUID();const next=balance-item.price;
+      const next=balance-item.price;
       this.db.run('UPDATE wallets SET balance=? WHERE user_id=?',[next,profile.id]);
       this.db.run('INSERT INTO transactions(id,idempotency_key,user_id,kind,amount,balance_after,reference,created_at) VALUES(?,?,?,?,?,?,?,?)',
         [crypto.randomUUID(),idempotency,profile.id,'store-purchase',-item.price,next,item.id,Date.now()]);
       this.db.run('INSERT INTO inventory(user_id,item_id,quantity,equipped,acquired_at) VALUES(?,?,1,0,?) ON CONFLICT(user_id,item_id) DO UPDATE SET quantity=inventory.quantity+1',
         [profile.id,item.id,Date.now()]);
-      return {item:item,balance:next};
+      return {item:item,balance:next,applied:true};
     });
   }
   equip(userId,itemId){
@@ -49,17 +52,20 @@ class UltraStore {
       return {equipped:itemId,slot:item.slot};
     });
   }
-  craft(userId,recipeId){
+  craft(userId,recipeId,idempotencyKey){
     const recipe=RECIPES.find((entry)=>entry.id===recipeId);if(!recipe)throw new Error('Unknown crafting recipe.');
     return this.db.transaction(()=>{
+      const operationKey=idempotencyKey?String(idempotencyKey):null;
+      if(operationKey&&this.db.get('SELECT id FROM event_log WHERE id=?',[operationKey]))return{recipe:recipe.id,output:recipe.output,applied:false};
       for(const itemId of Object.keys(recipe.ingredients)){
         const row=this.db.get('SELECT quantity FROM inventory WHERE user_id=? AND item_id=?',[safeId(userId),itemId]);
         if(!row||row.quantity<recipe.ingredients[itemId])throw new Error('Missing crafting materials.');
       }
+      if(operationKey)this.db.run('INSERT INTO event_log(id,event_type,created_at,payload) VALUES(?,?,?,?)',[operationKey,'store:craft',Date.now(),JSON.stringify({userId:userId,recipeId:recipe.id})]);
       for(const itemId of Object.keys(recipe.ingredients))this.db.run('UPDATE inventory SET quantity=quantity-? WHERE user_id=? AND item_id=?',[recipe.ingredients[itemId],userId,itemId]);
       this.db.run('INSERT INTO inventory(user_id,item_id,quantity,equipped,acquired_at) VALUES(?,?,1,0,?) ON CONFLICT(user_id,item_id) DO UPDATE SET quantity=inventory.quantity+1',
         [safeId(userId),recipe.output,Date.now()]);
-      return {recipe:recipe.id,output:recipe.output};
+      return {recipe:recipe.id,output:recipe.output,applied:true};
     });
   }
   recipes(){return RECIPES.map((recipe)=>({id:recipe.id,output:recipe.output,ingredients:recipe.ingredients}));}

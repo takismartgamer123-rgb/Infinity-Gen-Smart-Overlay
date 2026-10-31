@@ -3,8 +3,8 @@ const { Masterchat, stringify } = require('masterchat');
 const { cleanText, safeId } = require('./security');
 
 class YouTubeChatAdapter {
-  constructor(config, gameEngine, events) {
-    this.config=config;this.gameEngine=gameEngine;this.events=events;this.client=null;this.connected=false;
+  constructor(config, gameEngine, events, communityCommands) {
+    this.config=config;this.gameEngine=gameEngine;this.events=events;this.communityCommands=communityCommands;this.client=null;this.connected=false;
   }
   isAdmin(authorId,name) {
     if(!this.config.adminChannelIds.length) return false;
@@ -35,6 +35,7 @@ class YouTubeChatAdapter {
           return;
         }
         if(admin&&message==='.stop'){this.gameEngine.stop('Stopped by the channel operator.');return;}
+        if(this.communityCommands&&this.communityCommands.handle(user,message,chat.id||chat.messageId))return;
         this.gameEngine.handleChat(user,message,chat.id||chat.messageId);
       } catch(error) { this.events.emit('system:warning',{message:'Chat event rejected.',detail:error.message}); }
     });

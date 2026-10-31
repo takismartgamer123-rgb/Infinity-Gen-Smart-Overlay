@@ -125,6 +125,21 @@ Viewers join an open lobby with:
 !join
 ~~~
 
+Community account and store commands work from the verified YouTube channel identity:
+
+~~~text
+!profile
+!missions
+!achievements
+!store
+!buy violet-title
+!inventory
+!equip violet-title
+!craft craft-aurora-frame
+~~~
+
+Store purchases and crafting are deduplicated by the source chat message ID. These commands show confirmation on the live overlay; this adapter does not post messages back into YouTube chat.
+
 Game commands are displayed by the game or described in its Studio card. Common patterns include !answer, !guess, !solve, !recall, !move, !count and !build. Typing Sprint accepts the exact displayed phrase.
 
 For security, .start and .stop are ignored unless ADMIN_CHANNEL_IDS matches the message author's channel ID (or the exact configured fallback identity).

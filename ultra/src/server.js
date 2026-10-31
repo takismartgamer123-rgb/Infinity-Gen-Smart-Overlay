@@ -63,7 +63,7 @@ function createHttpServer(config,services) {
     try{
       const user={id:safeId(req.body.userId),name:String(req.body.userName||'Viewer').slice(0,48)};
       const community=communitySnapshot(services.db,services.missions);
-      const purchase=services.store.purchase(user,String(req.body.itemId||''),community.level);
+      const purchase=services.store.purchase(user,String(req.body.itemId||''),community.level,String(req.headers['idempotency-key']||req.body.requestId||('admin-buy:'+require('node:crypto').randomUUID())));
       res.json({ok:true,purchase,profile:services.economy.profile(user.id)});
     }catch(error){res.status(400).json({error:error.message});}
   });

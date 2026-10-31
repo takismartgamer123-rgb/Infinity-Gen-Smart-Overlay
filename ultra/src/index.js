@@ -11,12 +11,14 @@ const { YouTubeChatAdapter } = require('./chat-adapter');
 const { AuroraRenderer } = require('./renderer');
 const { FFmpegPublisher } = require('./publisher');
 const { createHttpServer } = require('./server');
+const { CommunityCommands } = require('./community-commands');
 
 async function main() {
   const config=loadConfig();const events=new EventEmitter();const db=new Persistence(config.databasePath);
   const economy=new Economy(db);const missions=new MissionEngine(db,economy,events);
   const progression=new Progression(db,economy,events);const store=new UltraStore(db);
-  const games=new GameEngine(db,events,config);const chat=new YouTubeChatAdapter(config,games,events);
+  const games=new GameEngine(db,events,config);const communityCommands=new CommunityCommands({db,economy,store,missions,progression,events});
+  const chat=new YouTubeChatAdapter(config,games,events,communityCommands);
   const renderer=new AuroraRenderer();const publisher=new FFmpegPublisher(config,events);
   const services={db,economy,missions,progression,store,games,chat,publisher,events,latestFrame:null};
   events.on('game:contribution',(event)=>{

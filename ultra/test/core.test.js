@@ -95,3 +95,18 @@ test('Code Breaker always creates four unique digits and Treasure starts away fr
     assert.notDeepEqual([state.tx,state.ty],[0,0]);
   }
 });
+
+test('store purchase is idempotent and crafting operations can be replay-protected',()=>{
+  const db=new Persistence(':memory:');const economy=new Economy(db);const store=new UltraStore(db);
+  const user={id:'store-user',name:'Store User'};economy.grant(user,500,0,'seed','seed-coins');
+  const first=store.purchase(user,'violet-title',1,'purchase-message-1');
+  const replay=store.purchase(user,'violet-title',1,'purchase-message-1');
+  assert.equal(first.applied,true);assert.equal(replay.applied,false);assert.equal(economy.profile(user.id).balance,420);
+  db.run('INSERT INTO inventory(user_id,item_id,quantity,equipped,acquired_at) VALUES(?,?,3,0,?)',[user.id,'timber',Date.now()]);
+  db.run('INSERT INTO inventory(user_id,item_id,quantity,equipped,acquired_at) VALUES(?,?,2,0,?)',[user.id,'spark',Date.now()]);
+  const crafted=store.craft(user.id,'craft-aurora-frame','craft-message-1');
+  const replayCraft=store.craft(user.id,'craft-aurora-frame','craft-message-1');
+  assert.equal(crafted.applied,true);assert.equal(replayCraft.applied,false);
+  assert.equal(db.get('SELECT quantity FROM inventory WHERE user_id=? AND item_id=?',[user.id,'aurora-frame']).quantity,1);
+  db.close();
+});

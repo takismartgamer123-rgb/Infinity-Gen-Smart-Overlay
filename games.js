@@ -31,7 +31,7 @@ const GAMES = {
         name: 'كلمة السر', min: 2, max: 20, emoji: '📜', cmd: 'كلمة',
         init: () => {
             const w = ['قالمة', 'انفينيتي', 'جلاد', 'امبراطورية', 'بامممم', 'ريندر', 'بوت'];
-            return { word: w[Math.floor(Math.random() * w.length)], revealed: [], wrong: 0, winner: null };
+            return { word: w[Math.floor(Math.random() * w.length)], revealed: [], wrongLetters: [], wrong: 0, winner: null };
         },
         renderer: drawWord,
         input: handleWord
@@ -150,7 +150,7 @@ function drawXO(ctx, W, H, data) {
     ctx.font = 'bold 100px Cairo'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     data.board.forEach((c,i) => { if(!c) return; const x = startX + (i%3)*size + size/2; const y = startY + Math.floor(i/3)*size + size/2; ctx.fillStyle = c==='X'?'#FF4500':'#00BFFF'; ctx.fillText(c, x, y); });
     ctx.textBaseline = 'alphabetic';
-    if(data.winner) { ctx.fillStyle = '#FFD700'; ctx.font = 'bold 60px Cairo'; ctx.fillText(`${data.winner==='تعادل'?'تعادل':data.winner+' فاز!'} 🎉`, W/2, H/2+320); }
+    if(data.winner) { const winnerName = data.winner==='تعادل' ? 'تعادل' : data.winner==='X' ? data.players[0] : data.players[1]; ctx.fillStyle = '#FFD700'; ctx.font = 'bold 60px Cairo'; ctx.fillText(`${winnerName} ${data.winner==='تعادل'?'':'فاز!'} 🎉`, W/2, H/2+320); }
     else { ctx.fillStyle = '#fff'; ctx.font = '40px Cairo'; ctx.fillText(`الدور: ${data.players[data.turn]}`, W/2, H/2+320); }
 }
 
@@ -190,7 +190,7 @@ function drawWord(ctx, W, H, data) {
 
 function drawWheel(ctx, W, H, data) {
     drawBase(ctx, W, H, 'عجلة الحظ 🎡', '#FFD700');
-    ctx.save(); ctx.translate(W/2, H/2); if(data.spinning) data.angle += 10; ctx.rotate(data.angle * Math.PI/180);
+    ctx.save(); ctx.translate(W/2, H/2); ctx.rotate(data.angle * Math.PI/180);
     const colors = ['#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF','#FFA500'];
     for(let i=0;i<7;i++){ ctx.fillStyle = colors[i]; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,150,i*Math.PI*2/7,(i+1)*Math.PI*2/7); ctx.fill(); ctx.fillStyle = '#000'; ctx.font = '25px Cairo'; ctx.textAlign = 'center'; ctx.fillText(data.prizes[i].toString(), 100*Math.cos((i+0.5)*Math.PI*2/7), 100*Math.sin((i+0.5)*Math.PI*2/7)); }
     ctx.restore(); ctx.textAlign = 'center';
@@ -218,7 +218,6 @@ function drawTyping(ctx, W, H, data) {
 function drawWords(ctx, W, H, data) {
     drawBase(ctx, W, H, 'حرب كلمات 60ث 💬', '#FF6347');
     const left = Math.max(0, data.timeLeft - Math.floor((Date.now()-data.started)/1000));
-    if(left===0) data.ended = true;
     ctx.font = '70px Cairo'; ctx.fillStyle = left<10?'#FF0000':'#FFD700'; ctx.textAlign = 'center';
     ctx.fillText(`${left} ثانية`, W/2, H/2-100);
     const sorted = Object.entries(data.words).sort((a,b)=>b[1]-a[1]).slice(0,5);
@@ -255,7 +254,7 @@ function drawSpeed(ctx, W, H, data) {
     drawBase(ctx, W, H, 'تحدي سرعة ⚡', '#FF0000');
     ctx.font = '150px Cairo'; ctx.textAlign = 'center'; ctx.fillText(data.emoji, W/2, H/2-50);
     ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText('اكتب الإيموجي بسرعة!', W/2, H/2+100);
-    const sorted = data.clicked.sort((a,b)=>a.time-b.time).slice(0,3);
+    const sorted = [...data.clicked].sort((a,b)=>a.time-b.time).slice(0,3);
     ctx.font = '30px Cairo'; ctx.fillStyle = '#FFD700'; ctx.textAlign = 'right';
     sorted.forEach((c,i) => ctx.fillText(`${i+1}. ${c.name}: ${(c.time/1000).toFixed(2)}ث`, W/2+300, H/2+160+i*40));
 }
@@ -322,11 +321,16 @@ function handleMafia(msg, data, player) {
 }
 
 function handleRPS(msg, data, player) {
-    if (!['حجر', 'ورقة', 'مقص'].includes(msg)) return;
-    if (player === data.p1) data.c1 = msg;
-    if (player === data.p2) data.c2 = msg;
-    if (!data.p2 && data.c1 &&!data.c2) data.c2 = ['حجر', 'ورقة', 'مقص'][Math.floor(Math.random() * 3)];
-    if (data.c1 && data.c2 &&!data.result) data.result = getRPSWinner(data.c1, data.c2, data.p1, data.p2);
+    if (!['حجر', 'ورقة', 'مقص'].includes(msg) || data.result) return;
+    if (player === data.p1 && !data.c1) {
+        data.c1 = msg;
+        if (data.p2 === 'بوت' && !data.c2) {
+            data.c2 = ['حجر', 'ورقة', 'مقص'][Math.floor(Math.random() * 3)];
+        }
+    } else if (data.p2 !== 'بوت' && player === data.p2 && !data.c2) {
+        data.c2 = msg;
+    }
+    if (data.c1 && data.c2) data.result = getRPSWinner(data.c1, data.c2, data.p1, data.p2);
 }
 
 function handleGuess(msg, data, player) {
@@ -335,26 +339,36 @@ function handleGuess(msg, data, player) {
 }
 
 function handleWord(msg, data) {
-    if (msg.length === 1 && data.word.includes(msg) &&!data.revealed.includes(msg)) {
-        data.revealed.push(msg);
+    if (data.winner || data.wrong >= 6 || msg.length !== 1) return;
+    if (data.word.includes(msg)) {
+        if (!data.revealed.includes(msg)) data.revealed.push(msg);
         if (data.word.split('').every(c => data.revealed.includes(c))) data.winner = 'الجميع';
-    } else if (msg.length === 1) {
+    } else if (!data.wrongLetters.includes(msg)) {
+        data.wrongLetters.push(msg);
         data.wrong++;
     }
 }
 
 function handleWheel(msg, data) {
-    if (msg === 'لف' &&!data.spinning && data.result === null) {
+    if (msg === 'لف' && !data.spinning && data.result === null) {
         data.spinning = true;
-        setTimeout(() => { data.result = data.prizes[Math.floor(Math.random() * data.prizes.length)]; data.spinning = false; }, 3000);
+        const spinStarted = Date.now();
+        const spinTimer = setInterval(() => {
+            data.angle = (data.angle + 18) % 360;
+            if (Date.now() - spinStarted >= 3000) {
+                clearInterval(spinTimer);
+                data.result = data.prizes[Math.floor(Math.random() * data.prizes.length)];
+                data.spinning = false;
+            }
+        }, 50);
     }
 }
 
 function handleQuiz(msg, data, player) { if (msg.trim() === data.a &&!data.winner) data.winner = player; }
 
-function handleTyping(msg, data, player) { if (msg === data.text &&!data.times[player]) { data.times[player] = Date.now() - data.started; if (Object.keys(data.times).length >= 2) data.finished = true; } }
+function handleTyping(msg, data, player) { if (!data.finished && msg === data.text && !data.times[player]) { data.times[player] = Date.now() - data.started; if (Object.keys(data.times).length >= 2) data.finished = true; } }
 
-function handleWords(msg, data, player) { if (!data.ended) data.words[player] = (data.words[player] || 0) + msg.trim().split(/\s+/).filter(w=>w).length; }
+function handleWords(msg, data, player) { if (!data.ended && Date.now() - data.started < data.timeLeft * 1000) data.words[player] = (data.words[player] || 0) + msg.trim().split(/\s+/).filter(w=>w).length; }
 
 function handleMillion(msg, data) { if (/^[1-4]$/.test(msg) && data.q < data.questions.length) { if (parseInt(msg) - 1 === data.questions[data.q].a) data.score += 100 * (data.q + 1); data.q++; } }
 
@@ -382,10 +396,15 @@ function handleKiller(msg, data, player) {
 }
 
 function handleStock(msg, data) {
+    if (msg !== 'شراء' && msg !== 'بيع') return;
+    const previousPrice = data.price;
     if (msg === 'شراء' && data.cash >= data.price) { data.portfolio++; data.cash -= data.price; data.price += Math.floor(Math.random()*10)+1; }
-    if (msg === 'بيع' && data.portfolio > 0) { data.portfolio--; data.cash += data.price; data.price -= Math.floor(Math.random()*10)+1; }
-    data.price = Math.max(10, data.price); data.history.push(data.price); if(data.history.length > 20) data.history.shift();
-    data.trend = data.price >= data.history[data.history.length-2]? 'up' : 'down';
+    else if (msg === 'بيع' && data.portfolio > 0) { data.portfolio--; data.cash += data.price; data.price -= Math.floor(Math.random()*10)+1; }
+    else return;
+    data.price = Math.max(10, data.price);
+    data.history.push(data.price);
+    if (data.history.length > 20) data.history.shift();
+    data.trend = data.price >= previousPrice ? 'up' : 'down';
 }
 
 function handleKingdom(msg, data, player) {
@@ -417,7 +436,10 @@ function assignMafiaRoles(players) {
 
 function getRPSWinner(c1, c2, p1, p2) {
     if (c1 === c2) return 'تعادل';
-    if ((c1==='حجر'&&c2==='مقص')||(c1==='ورقة'&&c2==='حجر')||(c1==='مقص'&&c2==='ورقة'))     return `${p2} فاز!`;
+    if ((c1 === 'حجر' && c2 === 'مقص') ||
+        (c1 === 'ورقة' && c2 === 'حجر') ||
+        (c1 === 'مقص' && c2 === 'ورقة')) return `${p1} فاز!`;
+    return `${p2} فاز!`;
 }
 
 module.exports = { GAMES };

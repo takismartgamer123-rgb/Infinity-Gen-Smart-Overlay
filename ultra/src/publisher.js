@@ -21,6 +21,7 @@ class FFmpegPublisher {
     try {
       const child=spawn(this.config.ffmpegPath,args,{stdio:['pipe','ignore','pipe']});
       this.process=child;
+      child.stdin.on('error',(error)=>this.events.emit('system:warning',{message:'FFmpeg input pipe error.',detail:error.message}));
       child.stderr.on('data',(chunk)=>{this.stderrTail=(this.stderrTail+chunk.toString()).slice(-4000);});
       child.once('spawn',()=>{this.attempt=0;this.events.emit('publisher:state',{enabled:true,running:true});});
       child.once('error',(error)=>{this.events.emit('system:warning',{message:'FFmpeg could not start.',detail:error.message});});

@@ -38,7 +38,7 @@ class YouTubeChatAdapter {
         this.gameEngine.handleChat(user,message,chat.id||chat.messageId);
       } catch(error) { this.events.emit('system:warning',{message:'Chat event rejected.',detail:error.message}); }
     });
-    mc.on('error',(error)=>this.events.emit('system:warning',{message:'YouTube chat connection error.',detail:error.message||String(error)}));
+    mc.on('error',(error)=>{this.connected=false;this.events.emit('chat:connected',{connected:false});this.events.emit('system:warning',{message:'YouTube chat connection error.',detail:error.message||String(error)});});
     mc.listen();
     this.connected=true;
     this.events.emit('chat:connected',{connected:true});

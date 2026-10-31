@@ -12,7 +12,7 @@ class GameEngine {
     const definition=GAME_MAP.get(gameId);if(!definition)throw new Error('Unknown game id.');
     const user={id:safeId(host.id),name:cleanText(host.name,48)||'Studio Operator'};this.db.ensureUser(user);
     const now=Date.now();
-    this.session={id:crypto.randomUUID(),gameId:gameId,phase:'lobby',host:user,players:[user],state:definition.create(),createdAt:now,startedAt:0,outcome:null};
+    this.session={id:crypto.randomUUID(),gameId:gameId,phase:'lobby',host:user,players:[user],state:definition.create(),createdAt:now,startedAt:0,outcome:null,contributionCounts:{}};
     this.persist();this.events.emit('game:state',this.snapshot());
     this.lobbyTimer=setTimeout(()=>this.begin(),this.config.lobbySeconds*1000);this.lobbyTimer.unref?.();
     return this.snapshot();
@@ -46,8 +46,14 @@ class GameEngine {
     if(response&&response.state)this.session.state=response.state;
     if(response&&response.success){
       if(!existing)this.session.players.push(player);
-      const event={id:crypto.randomUUID(),trusted:true,user:player,gameId:this.session.gameId,kind:'verified-action'};
-      this.events.emit('game:contribution',event);
+      const rewarded=Number(this.session.contributionCounts[id]||0);
+      if(rewarded<3){
+        this.session.contributionCounts[id]=rewarded+1;
+        const event={id:crypto.randomUUID(),trusted:true,user:player,gameId:this.session.gameId,kind:'verified-action'};
+        this.events.emit('game:contribution',event);
+      } else {
+        this.events.emit('game:notice',{text:'Your game contribution reward limit for this round has been reached. You can keep helping the community!'});
+      }
     }
     if(response&&response.notice)this.events.emit('game:notice',{text:response.notice});
     if(response&&response.complete)this.finish('completed');
@@ -86,10 +92,10 @@ class GameEngine {
   snapshot(){
     if(!this.session)return{phase:'idle',game:null,players:[],playerCount:0,state:null,host:null};
     const definition=GAME_MAP.get(this.session.gameId);
-    return{phase:this.session.phase,game:{id:definition.id,name:definition.name,nameAr:definition.nameAr,emoji:definition.emoji,description:definition.description},
+    return{phase:this.session.phase,game:{id:definition.id,name:definition.name,nameAr:definition.nameAr,emoji:definition.emoji,description:definition.description,howTo:definition.howTo},
       host:this.session.host.name,players:this.session.players.map((p)=>p.name),playerCount:this.session.players.length,
       startedAt:this.session.startedAt||null,state:definition.view(this.session.state),outcome:this.session.outcome};
   }
-  catalog(){return GAMES.map((game)=>({id:game.id,name:game.name,nameAr:game.nameAr,emoji:game.emoji,minPlayers:game.minPlayers,maxPlayers:game.maxPlayers,seconds:game.seconds||this.config.gameMaxSeconds,description:game.description}));}
+  catalog(){return GAMES.map((game)=>({id:game.id,name:game.name,nameAr:game.nameAr,emoji:game.emoji,minPlayers:game.minPlayers,maxPlayers:game.maxPlayers,seconds:game.seconds||this.config.gameMaxSeconds,description:game.description,howTo:game.howTo}));}
 }
 module.exports={GameEngine};

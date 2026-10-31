@@ -5,7 +5,7 @@ class MissionEngine {
   constructor(db, economy, events) { this.db = db; this.economy = economy; this.events = events; this.seed(); }
   seed() {
     const now = Date.now();
-    this.db.run('UPDATE missions SET status="expired" WHERE status="active" AND ends_at<=?', [now]);
+    this.db.run('UPDATE missions SET status="expired" WHERE status="active" AND (ends_at<=? OR scope="live")', [now]);
     const dayStart=Date.UTC(new Date(now).getUTCFullYear(),new Date(now).getUTCMonth(),new Date(now).getUTCDate());
     const dayKey=new Date(dayStart).toISOString().slice(0,10);
     const dayEnd=dayStart+86400000;
@@ -54,6 +54,7 @@ class MissionEngine {
   distribute(mission) {
     const people = this.db.all('SELECT DISTINCT mc.user_id,u.display_name FROM mission_contributions mc JOIN users u ON u.id=mc.user_id WHERE mc.mission_id=?', [mission.id]);
     for (const person of people) {
+      if (Number(mission.reward_coins) === 0 && Number(mission.reward_xp) === 0) continue;
       try { this.economy.grant({id:person.user_id,name:person.display_name},mission.reward_coins,mission.reward_xp,'mission:'+mission.id,'mission:'+mission.id+':'+person.user_id); }
       catch (error) { this.events.emit('system:warning',{message:'A mission reward could not be delivered.',detail:error.message}); }
     }

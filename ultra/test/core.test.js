@@ -79,3 +79,19 @@ test('Ultra Store crafting is deterministic and requires owned materials',()=>{
   assert.equal(store.craft(user.id,'craft-aurora-frame').output,'aurora-frame');
   assert.equal(db.get('SELECT quantity FROM inventory WHERE user_id=? AND item_id=?',[user.id,'aurora-frame']).quantity,1);db.close();
 });
+
+test('Code Breaker always creates four unique digits and Treasure starts away from its target',()=>{
+  const code=GAME_MAP.get('code-breaker');
+  for(let i=0;i<100;i++){
+    const secret=code.create().secret;
+    assert.equal(secret.length,4);
+    assert.equal(new Set(secret).size,4);
+    assert.ok([...secret].every((digit)=>digit>='0'&&digit<='9'));
+  }
+  const treasure=GAME_MAP.get('treasure-expedition');
+  for(let i=0;i<50;i++){
+    const state=treasure.create();
+    assert.ok(state.tx>=0&&state.tx<=4&&state.ty>=0&&state.ty<=4);
+    assert.notDeepEqual([state.tx,state.ty],[0,0]);
+  }
+});

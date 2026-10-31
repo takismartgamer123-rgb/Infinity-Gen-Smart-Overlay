@@ -1,5 +1,6 @@
 name: Infinity Gen Ultra CI
 on:
+  workflow_dispatch:
   push:
     branches: [main, revival-v6-core, remake-ultra]
   pull_request:

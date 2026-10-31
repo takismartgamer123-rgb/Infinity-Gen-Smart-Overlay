@@ -30,7 +30,7 @@ function socketConnect(){
         $('#phase').textContent=(data.phase||'idle').toUpperCase()+' / COMMUNITY PLAY';
         $('#game-emoji').textContent=game.emoji||'♾️';$('#game-name').textContent=game.name||'Play Together';
         $('#game-arabic').textContent=game.nameAr||'ابنوا العالم معًا';
-        $('#description').textContent=game.description||'Sixteen clean community games. One shared adventure.';
+        $('#description').textContent=(game.description||'Sixteen clean community games. One shared adventure.')+(game.howTo?'  HOW TO PLAY: '+game.howTo:'');
         $('#players').textContent=data.playerCount?('PARTICIPANTS  '+data.players.join(' · ')):'Waiting for the next lobby';
         renderState(data.state);
       }

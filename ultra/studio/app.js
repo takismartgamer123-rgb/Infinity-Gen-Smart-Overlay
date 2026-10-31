@@ -20,7 +20,7 @@ function renderGames(){
   games.forEach((game)=>{
     const card=element('article','game-card');card.append(element('div','game-icon',game.emoji));
     card.append(element('h3','',game.name));card.append(element('div','arabic',game.nameAr||''));
-    card.append(element('p','',game.description));
+    card.append(element('p','',game.description+(game.howTo?' How to play: '+game.howTo:'')));
     const button=element('button','button secondary','Open Lobby');button.type='button';
     button.addEventListener('click',async()=>{
       try{await api('/api/admin/games/start',{method:'POST',body:JSON.stringify({gameId:game.id})});notice('Lobby opened: '+game.name);await refresh();}

@@ -151,7 +151,7 @@ Write endpoints under /api/admin/ require Authorization: Bearer ADMIN_TOKEN.
 
 - One spendable currency: Infinity Coins (IC).
 - XP and levels are progression values, not spendable currency.
-- A successful, validated game action earns a small fixed reward.
+- A successful, validated game action earns a small fixed reward, capped at three reward-eligible actions per viewer per game session.
 - Mission rewards are granted once to each eligible contributor after completion.
 - Wallet balances cannot go below zero; all coin changes are recorded in a transaction ledger.
 - Store items are non-transferable. Equipping is cosmetic; utility tokens remain optional.

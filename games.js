@@ -42,7 +42,7 @@ const GAMES = {
     },
     عجلة: {
         name: 'عجلة الحظ', min: 1, max: 1, emoji: '🎡', cmd: 'عجلة',
-        init: () => ({ spinning: false, result: null, angle: 0, prizes: [10, 50, 100, 200, 500, 0, 1000] }),
+        init: (p) => ({ owner: p[0], spinning: false, result: null, angle: 0, prizes: [10, 50, 100, 200, 500, 0, 1000] }),
         renderer: drawWheel,
         input: handleWheel
     },
@@ -63,9 +63,12 @@ const GAMES = {
     },
     كتابة: {
         name: 'سباق كتابة', min: 2, max: 10, emoji: '⌨️', cmd: 'كتابة',
-        init: () => {
+        init: (p) => {
             const t = ['انفينيتي جن من قالمة', 'البوت الجلاد شغال 24 ساعة', 'بامممم يا ملك', 'ريندر مجاني 512MB'];
-            return { text: t[Math.floor(Math.random() * t.length)], times: {}, started: Date.now(), finished: false };
+            return {
+                text: t[Math.floor(Math.random() * t.length)], times: {},
+                players: [...p], started: Date.now(), finished: false
+            };
         },
         renderer: drawTyping,
         input: handleTyping
@@ -78,8 +81,8 @@ const GAMES = {
     },
     مليون: {
         name: 'من سيربح النقاط', min: 1, max: 1, emoji: '💰', cmd: 'مليون',
-        init: () => ({
-            q: 0, score: 0,
+        init: (p) => ({
+            owner: p[0], q: 0, score: 0,
             questions: [
                 { q: 'عاصمة الجزائر؟', c: ['وهران', 'الجزائر', 'قسنطينة', 'عنابة'], a: 1 },
                 { q: '2 + 2 * 2 = ؟', c: ['6', '8', '4', '2'], a: 0 },
@@ -92,7 +95,7 @@ const GAMES = {
     },
     كنز: {
         name: 'كنز قالمة', min: 1, max: 1, emoji: '💎', cmd: 'كنز',
-        init: () => ({ pos: 0, treasure: Math.floor(Math.random() * 10), found: false, steps: 0 }),
+        init: (p) => ({ owner: p[0], pos: 0, treasure: Math.floor(Math.random() * 10), found: false, steps: 0 }),
         renderer: drawTreasure,
         input: handleTreasure
     },
@@ -277,7 +280,9 @@ function drawJail(ctx, W, H, data) {
 function drawSpeed(ctx, W, H, data) {
     drawBase(ctx, W, H, 'تحدي سرعة ⚡', '#FF0000');
     ctx.font = '150px Cairo'; ctx.textAlign = 'center'; ctx.fillText(data.emoji, W/2, H/2-50);
-    ctx.font = '40px Cairo'; ctx.fillStyle = '#fff'; ctx.fillText(data.finished ? 'انتهى التحدي!' : 'اكتب الإيموجي بسرعة!', W/2, H/2+100);
+    ctx.font = '40px Cairo'; ctx.fillStyle = '#fff';
+    const secondsLeft = Math.max(0, 30 - Math.floor((Date.now() - data.started) / 1000));
+    ctx.fillText(data.finished ? 'انتهى التحدي!' : `اكتب الإيموجي بسرعة! ${secondsLeft}ث`, W/2, H/2+100);
     const sorted = [...data.clicked].sort((a,b)=>a.time-b.time).slice(0,3);
     ctx.font = '30px Cairo'; ctx.fillStyle = '#FFD700'; ctx.textAlign = 'right';
     sorted.forEach((c,i) => ctx.fillText(`${i+1}. ${c.name}: ${(c.time/1000).toFixed(2)}ث`, W/2+300, H/2+160+i*40));
@@ -435,7 +440,8 @@ function handleWord(msg, data) {
     }
 }
 
-function handleWheel(msg, data) {
+function handleWheel(msg, data, player) {
+    if (player !== data.owner) return;
     if (msg === 'لف' && !data.spinning && data.result === null) {
         data.spinning = true;
         const spinStarted = Date.now();
@@ -452,14 +458,24 @@ function handleWheel(msg, data) {
 
 function handleQuiz(msg, data, player) { if (msg.trim() === data.a &&!data.winner) data.winner = player; }
 
-function handleTyping(msg, data, player) { if (!data.finished && msg === data.text && !Object.prototype.hasOwnProperty.call(data.times, player)) { data.times[player] = Date.now() - data.started; if (Object.keys(data.times).length >= 2) data.finished = true; } }
+function handleTyping(msg, data, player) {
+    if (!data.finished && data.players.includes(player) && msg === data.text &&
+        !Object.prototype.hasOwnProperty.call(data.times, player)) {
+        data.times[player] = Date.now() - data.started;
+        if (Object.keys(data.times).length >= data.players.length) data.finished = true;
+    }
+}
 
 function handleWords(msg, data, player) { if (!data.ended && Date.now() - data.started < data.timeLeft * 1000) data.words[player] = (data.words[player] || 0) + msg.trim().split(/\s+/).filter(w=>w).length; }
 
-function handleMillion(msg, data) { if (/^[1-4]$/.test(msg) && data.q < data.questions.length) { if (parseInt(msg) - 1 === data.questions[data.q].a) data.score += 100 * (data.q + 1); data.q++; } }
+function handleMillion(msg, data, player) {
+    if (player !== data.owner || !/^[1-4]$/.test(msg) || data.q >= data.questions.length) return;
+    if (parseInt(msg, 10) - 1 === data.questions[data.q].a) data.score += 100 * (data.q + 1);
+    data.q++;
+}
 
-function handleTreasure(msg, data) {
-    if (data.found) return;
+function handleTreasure(msg, data, player) {
+    if (player !== data.owner || data.found) return;
     if (msg === 'يمين' && data.pos < 9) { data.pos++; data.steps++; }
     if (msg === 'يسار' && data.pos > 0) { data.pos--; data.steps++; }
     if (msg === 'حفر' && data.pos === data.treasure) data.found = true;

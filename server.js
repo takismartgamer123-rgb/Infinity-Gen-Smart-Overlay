@@ -98,7 +98,7 @@ function drawIdleScreen(ctx, W, H) {
     ctx.fillStyle = '#fff'; ctx.font = 'bold 50px Cairo';
     ctx.fillText('16 لعبة تفاعلية + بث مباشر', W/2, H/2-80);
     ctx.font = '35px Cairo'; ctx.fillStyle = '#888';
-    ctx.fillText('اكتب.start + اسم اللعبة للبدء', W/2, H/2);
+    ctx.fillText('ابدأ غرفة: .start xo  |  الانضمام: ادخل', W/2, H/2);
     ctx.fillText('xo | مافيا | rps | تخمين | كلمة | عجلة | سؤال | كتابة', W/2, H/2+60);
     ctx.fillText('كلمات | مليون | كنز | سجن | سرعة | قاتل | بورصة | مملكة', W/2, H/2+110);
 }

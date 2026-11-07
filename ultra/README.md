@@ -29,7 +29,7 @@ The remake lives in its own ultra directory. The original prototype files (serve
 | Ultra Store | Catalog, inventory, equip slots and deterministic crafting |
 | YouTube Adapter | Masterchat input; optional and separately configured |
 | Renderer | Server-side 1920×1080 Gamma Aurora PNG frames |
-| Publisher | Optional FFmpeg image-pipe publisher to RTMP/RTMPS |
+| Publisher | Optional FFmpeg image-pipe publisher to RTMP/RTMPS or YouTube HLS ingest via ordered HTTPS PUT uploads |
 | Studio / Overlay | Static control dashboard and read-only live overlay |
 
 This is intentionally a **modular monolith**, not a collection of separately hosted microservices. The modules can be separated later if a real operational need appears.
@@ -104,10 +104,32 @@ The default database is ./data/infinity-ultra.sqlite. Keep the data directory on
 | GAME_MAX_SECONDS | Global game duration cap |
 | ENABLE_CHAT | Set to false to disable the YouTube adapter |
 | ENABLE_PUBLISHER | Must be true to start FFmpeg publishing |
-| PUBLISH_URL | Private relay RTMP(S) URL; YOUTUBE_RTMP is accepted as a fallback |
+| PUBLISH_PROTOCOL | `rtmp` (default) or `hls` |
+| PUBLISH_URL | Private relay RTMP(S) URL; used only in RTMP mode |
+| YOUTUBE_HLS_STREAM_KEY | YouTube Studio HLS stream key; used only in HLS mode |
 | FFMPEG_PATH, FFMPEG_BITRATE | FFmpeg binary and video bitrate |
 
 Never commit .env, a YouTube stream key, or an authenticated relay URL. The example environment is safe to publish.
+
+### YouTube HLS ingest mode
+
+The default publisher remains RTMP. To publish directly to YouTube using HLS, set:
+
+~~~env
+ENABLE_PUBLISHER=true
+PUBLISH_PROTOCOL=hls
+YOUTUBE_VIDEO_ID=your_active_live_video_id
+YOUTUBE_HLS_STREAM_KEY=your_hls_stream_key
+DATABASE_PATH=./data/infinity-ultra.sqlite
+~~~
+
+The publisher generates local MPEG-TS segments with FFmpeg, then uploads each updated media playlist and its segments to YouTube's primary HLS ingest endpoint using HTTPS PUT. It uploads the playlist before the new segments, keeps the rolling playlist at five entries, uses two-second segments, H.264 video and AAC audio, and assigns unique segment filenames per FFmpeg run.
+
+Keep `DATABASE_PATH` on persistent storage while reconnecting to the same YouTube live event. Infinity Gen reserves media-sequence number blocks in SQLite so a restarted encoder can continue with a larger sequence number instead of restarting at zero. Starting a different live event (a different `YOUTUBE_VIDEO_ID`) gets a new sequence starting at zero. If the database is reset while reusing the same live event, sequence continuity cannot be guaranteed.
+
+The HLS stream key is a secret. Put it in the host's environment-secret settings; never place it in the repository, Studio HTML, a URL shared publicly, or browser-side JavaScript. HLS ingest normally has higher latency than RTMP because it is segment-based. Test on an unlisted broadcast before using it publicly. See the [official YouTube HLS ingestion requirements](https://developers.google.com/youtube/data/live/guides/hls-ingestion).
+
+The local segment directory is temporary and is cleaned up when the publisher stops. The persistent SQLite database stores only the sequence reservation, not the stream key or media files.
 
 ## Chat commands
 

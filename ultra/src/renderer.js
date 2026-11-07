@@ -58,7 +58,7 @@ class AuroraRenderer {
     const subscribers=channelStats.subscriberCountHidden?'Hidden':count(channelStats.subscriberCount);
     ctx.fillStyle='#F5F3FF';ctx.font='bold 19px Arial';ctx.fillText('YOUTUBE LIVE STATS',1320,900);
     ctx.fillStyle='#AFA7C7';ctx.font='17px Arial';
-    ctx.fillText('SUBS '+subscribers+'  •  CHANNEL VIEWS '+count(channelStats.viewCount),1320,923,470);
+    ctx.fillText('SUBS '+subscribers+'  •  CHANNEL VIEWS '+count(channelStats.viewCount)+'  •  VIDEOS '+count(channelStats.videoCount),1320,923,470);
     ctx.fillText('LIVE '+count(videoStats.concurrentViewers)+'  •  VIDEO '+count(videoStats.viewCount)+' VIEWS  •  LIKES '+count(videoStats.likeCount),1320,944,470);
     this.panel(ctx,60,985,1800,55,'#8B5CF6');
     ctx.fillStyle='#BDB6D0';ctx.font='20px Arial';ctx.textAlign='center';ctx.fillText('GAMMA AURORA  •  NO PAY-TO-WIN  •  NO PAID RANDOM REWARDS  •  COMMUNITY FIRST',960,1021);

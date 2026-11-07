@@ -31,9 +31,48 @@ function parseMediaPlaylist(source) {
   if (!sequenceLine) throw new Error('HLS playlist is missing EXT-X-MEDIA-SEQUENCE.');
   const mediaSequence = Number(sequenceLine.slice(sequenceLine.indexOf(':') + 1));
   if (!Number.isSafeInteger(mediaSequence) || mediaSequence < 0) throw new Error('HLS media sequence is invalid.');
-  const segments = lines.filter((line) => !line.startsWith('#')).map((line) => safeIngestFilename(line, '.ts'));
+  const targetLine = lines.find((line) => line.startsWith('#EXT-X-TARGETDURATION:'));
+  const targetDuration = targetLine ? Number(targetLine.slice(targetLine.indexOf(':') + 1)) : 2;
+  if (!Number.isFinite(targetDuration) || targetDuration < 1 || targetDuration > 5) {
+    throw new Error('HLS target duration must be between one and five seconds.');
+  }
+  const versionLine = lines.find((line) => line.startsWith('#EXT-X-VERSION:'));
+  const version = versionLine ? Number(versionLine.slice(versionLine.indexOf(':') + 1)) : 3;
+  if (!Number.isSafeInteger(version) || version < 1 || version > 9) throw new Error('HLS playlist version is invalid.');
+
+  const segments = [];
+  let duration = null;
+  for (const line of lines) {
+    if (line.startsWith('#EXTINF:')) {
+      const raw = line.slice('#EXTINF:'.length).split(',')[0];
+      const parsedDuration = Number(raw);
+      if (!Number.isFinite(parsedDuration) || parsedDuration <= 0 || parsedDuration > 5) {
+        throw new Error('HLS segment duration must be greater than zero and no longer than five seconds.');
+      }
+      duration = raw;
+    } else if (!line.startsWith('#')) {
+      if (duration === null) throw new Error('HLS segment is missing its EXTINF duration.');
+      segments.push({ filename: safeIngestFilename(line, '.ts'), duration });
+      duration = null;
+    }
+  }
+  if (duration !== null) throw new Error('HLS playlist ends with an incomplete segment entry.');
   if (segments.length > 5) throw new Error('HLS playlist contains more than five segments.');
-  return { mediaSequence, segments };
+  return { mediaSequence, targetDuration, version, segments };
+}
+
+function buildProgressPlaylist(parsed, lastIncludedIndex) {
+  const lines = [
+    '#EXTM3U',
+    '#EXT-X-VERSION:' + parsed.version,
+    '#EXT-X-TARGETDURATION:' + parsed.targetDuration,
+    '#EXT-X-MEDIA-SEQUENCE:' + parsed.mediaSequence
+  ];
+  for (let index = 0; index <= lastIncludedIndex; index++) {
+    const segment = parsed.segments[index];
+    lines.push('#EXTINF:' + segment.duration + ',', segment.filename);
+  }
+  return lines.join('\n') + '\n';
 }
 
 function putFile(baseUrl, filename, body, contentType, agent) {
@@ -49,7 +88,7 @@ function putFile(baseUrl, filename, body, contentType, agent) {
       headers: {
         'Content-Type': contentType,
         'Content-Length': body.length,
-        'User-Agent': 'Infinity Gen / HLS Publisher'
+        'User-Agent': 'Infinity Gen / Ultra HLS Publisher / 1.0'
       }
     }, (response) => {
       let responseText = '';
@@ -83,6 +122,7 @@ class HlsIngestUploader {
     this.agent = new https.Agent({ keepAlive: true, maxSockets: 2 });
     this.timer = null;
     this.syncing = false;
+    this.activeSync = null;
     this.stopped = false;
     this.lastError = '';
   }
@@ -107,44 +147,68 @@ class HlsIngestUploader {
   async sync() {
     if (this.stopped || this.syncing) return false;
     this.syncing = true;
+    const operation = this.syncInternal();
+    this.activeSync = operation;
     try {
-      const playlistPath = path.join(this.directory, this.playlistName);
-      let playlist;
-      try { playlist = await fs.promises.readFile(playlistPath, 'utf8'); }
-      catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-      const parsed = parseMediaPlaylist(playlist);
-      if (!parsed.segments.length) return false;
-
-      const firstPendingIndex = Math.max(0, this.nextSequence - parsed.mediaSequence);
-      if (parsed.mediaSequence > this.nextSequence) {
-        throw new Error('HLS segment gap detected: the local playlist advanced past the next required sequence.');
-      }
-      const pending = [];
-      for (let index = firstPendingIndex; index < parsed.segments.length; index++) {
-        const sequence = parsed.mediaSequence + index;
-        if (sequence !== this.nextSequence + pending.length) {
-          throw new Error('HLS segment sequence is not contiguous.');
-        }
-        pending.push({ sequence, filename: parsed.segments[index] });
-      }
-      if (!pending.length) return false;
-
-      // Publish the playlist first so YouTube knows which segment files to expect.
-      await this.upload(this.baseUrl, this.playlistName, Buffer.from(playlist, 'utf8'), 'application/vnd.apple.mpegurl', this.agent);
-      for (const segment of pending) {
-        const filePath = path.join(this.directory, segment.filename);
-        const bytes = await fs.promises.readFile(filePath);
-        await this.upload(this.baseUrl, segment.filename, bytes, 'video/MP2T', this.agent);
-        this.nextSequence = segment.sequence + 1;
-        await fs.promises.unlink(filePath).catch((error) => {
-          if (error.code !== 'ENOENT') throw error;
-        });
-      }
-      this.lastError = '';
-      return true;
+      const result = await operation;
+      return result;
     } finally {
       this.syncing = false;
+      this.activeSync = null;
       if (this.stopped) this.agent.destroy();
+    }
+  }
+
+  async syncInternal() {
+    const playlistPath = path.join(this.directory, this.playlistName);
+    let playlist;
+    try { playlist = await fs.promises.readFile(playlistPath, 'utf8'); }
+    catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+    const parsed = parseMediaPlaylist(playlist);
+    if (!parsed.segments.length) return false;
+
+    const firstPendingIndex = Math.max(0, this.nextSequence - parsed.mediaSequence);
+    if (parsed.mediaSequence > this.nextSequence) {
+      throw new Error('HLS segment gap detected: the local playlist advanced past the next required sequence.');
+    }
+    const pending = [];
+    for (let index = firstPendingIndex; index < parsed.segments.length; index++) {
+      const sequence = parsed.mediaSequence + index;
+      if (sequence !== this.nextSequence + pending.length) {
+        throw new Error('HLS segment sequence is not contiguous.');
+      }
+      pending.push({ sequence, index, filename: parsed.segments[index].filename });
+    }
+    if (!pending.length) return false;
+
+    // YouTube requires an updated playlist for every segment upload.
+    for (const segment of pending) {
+      const progressPlaylist = buildProgressPlaylist(parsed, segment.index);
+      await this.upload(
+        this.baseUrl, this.playlistName, Buffer.from(progressPlaylist, 'utf8'),
+        'application/vnd.apple.mpegurl', this.agent
+      );
+      const filePath = path.join(this.directory, segment.filename);
+      const bytes = await fs.promises.readFile(filePath);
+      await this.upload(this.baseUrl, segment.filename, bytes, 'video/MP2T', this.agent);
+      this.nextSequence = segment.sequence + 1;
+      await fs.promises.unlink(filePath).catch((error) => {
+        if (error.code !== 'ENOENT') throw error;
+      });
+    }
+    this.lastError = '';
+    return true;
+  }
+
+  async drain() {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+    while (this.activeSync) {
+      await this.activeSync.catch(() => {});
+    }
+    if (!this.stopped) {
+      try { await this.sync(); }
+      finally { this.stop(); }
     }
   }
 
@@ -160,4 +224,7 @@ class HlsIngestUploader {
   }
 }
 
-module.exports = { HlsIngestUploader, buildHlsIngestBase, parseMediaPlaylist, safeIngestFilename, putFile };
+module.exports = {
+  HlsIngestUploader, buildHlsIngestBase, parseMediaPlaylist,
+  buildProgressPlaylist, safeIngestFilename, putFile
+};

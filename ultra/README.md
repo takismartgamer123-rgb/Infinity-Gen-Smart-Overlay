@@ -91,6 +91,23 @@ Open the Studio at http://localhost:3000/studio/. The OBS browser source can use
 
 The default database is ./data/infinity-ultra.sqlite. Keep the data directory on persistent storage and back it up before upgrades.
 
+### Run as a Docker container
+
+The repository includes a Dockerfile with Node.js 22, FFmpeg and the native libraries required by Canvas. Build and run it with a persistent data mount:
+
+~~~sh
+docker build -t infinity-gen-ultra .
+mkdir -p data
+docker run -d --name infinity-gen-ultra \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v "$PWD/data:/data" \
+  --env-file .env \
+  infinity-gen-ultra
+~~~
+
+For HLS, set `DATABASE_PATH=/data/infinity-ultra.sqlite` in the private `.env` file. The container sets `TMPDIR=/data/tmp` so the active HLS segment spool is placed under the mounted data directory while the process is running. Keep that volume persistent. Never bake `.env`, API keys or stream keys into the image.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -126,7 +143,7 @@ YOUTUBE_HLS_STREAM_KEY=your_hls_stream_key
 DATABASE_PATH=./data/infinity-ultra.sqlite
 ~~~
 
-The publisher generates local MPEG-TS segments with FFmpeg, then uploads each updated media playlist and its segments to YouTube's primary HLS ingest endpoint using HTTPS PUT. It uploads the playlist before the new segments, keeps the rolling playlist at five entries, uses two-second segments, H.264 video and AAC audio, and assigns unique segment filenames per FFmpeg run.
+The publisher generates local MPEG-TS segments with FFmpeg, then uploads a refreshed media playlist before each segment to YouTube's primary HLS ingest endpoint using HTTPS PUT. Each upload playlist lists the two most recent acknowledged segments plus the next segment, staying within YouTube's outstanding-segment limit. It uses two-second MPEG-TS segments, H.264 video and AAC audio, and assigns unique segment filenames per FFmpeg run. Local queued segments are uploaded in order, even if the five-entry FFmpeg playlist has rolled forward.
 
 Keep `DATABASE_PATH` on persistent storage while reconnecting to the same YouTube live event. Infinity Gen reserves media-sequence number blocks in SQLite so a restarted encoder can continue with a larger sequence number instead of restarting at zero. Starting a different live event (a different `YOUTUBE_VIDEO_ID`) gets a new sequence starting at zero. If the database is reset while reusing the same live event, sequence continuity cannot be guaranteed.
 

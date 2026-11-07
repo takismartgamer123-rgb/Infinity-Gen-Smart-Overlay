@@ -88,7 +88,7 @@ class FFmpegPublisher {
       }
       const streamId = this.config.youtubeVideoId || crypto.createHash('sha256')
         .update(this.config.youtubeHlsStreamKey).digest('hex').slice(0, 32);
-      const startNumber = this.persistence.allocateHlsSequence(streamId, 1000000);
+      const startNumber = this.persistence.allocateHlsSequence(streamId, 1);
       const ingestBase = buildHlsIngestBase(this.config.youtubeHlsStreamKey);
       const prefix = 'ig_' + crypto.randomBytes(8).toString('hex') + '_';
       this.hlsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'infinity-gen-hls-'));
@@ -99,6 +99,7 @@ class FFmpegPublisher {
         startNumber,
         segmentPrefix: prefix,
         segmentDuration: '2.000000',
+        reserveNextSequence: () => this.persistence.allocateHlsSequence(streamId, 1),
         events: this.events
       });
       this.hlsUploader.start();

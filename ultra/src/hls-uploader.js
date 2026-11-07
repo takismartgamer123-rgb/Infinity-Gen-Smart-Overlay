@@ -144,6 +144,7 @@ class HlsIngestUploader {
       return true;
     } finally {
       this.syncing = false;
+      if (this.stopped) this.agent.destroy();
     }
   }
 
@@ -151,7 +152,7 @@ class HlsIngestUploader {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.agent.destroy();
+    if (!this.syncing) this.agent.destroy();
   }
 
   status() {

@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { Persistence } = require('../src/persistence');
-const { HlsIngestUploader, buildHlsIngestBase, parseMediaPlaylist } = require('../src/hls-uploader');
+const { HlsIngestUploader, buildHlsIngestBase, parseMediaPlaylist, buildProgressPlaylist } = require('../src/hls-uploader');
 const { buildHlsArgs } = require('../src/publisher');
 
 function mediaPlaylist(sequence, filenames) {
@@ -32,7 +32,11 @@ test('YouTube HLS ingest URL validates and keeps the stream key out of filenames
 test('HLS media playlist parser checks sequence, segment names and encryption', () => {
   const parsed = parseMediaPlaylist(mediaPlaylist(12, ['ig_ab12_00000012.ts', 'ig_ab12_00000013.ts']));
   assert.equal(parsed.mediaSequence, 12);
-  assert.deepEqual(parsed.segments, ['ig_ab12_00000012.ts', 'ig_ab12_00000013.ts']);
+  assert.deepEqual(parsed.segments, [
+    { filename: 'ig_ab12_00000012.ts', duration: '2.000000' },
+    { filename: 'ig_ab12_00000013.ts', duration: '2.000000' }
+  ]);
+  assert.match(buildProgressPlaylist(parsed, 0), /#EXT-X-MEDIA-SEQUENCE:12\\n#EXTINF:2.000000,\\nig_ab12_00000012.ts/);
   assert.throws(() => parseMediaPlaylist('#EXTM3U\n#EXTINF:2,\na.ts'), /MEDIA-SEQUENCE/);
   assert.throws(() => parseMediaPlaylist(mediaPlaylist(0, ['../outside.ts'])), /Invalid HLS ingest filename/);
   assert.throws(() => parseMediaPlaylist('#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-KEY:METHOD=AES-128\nx.ts'), /Encrypted HLS/);
@@ -60,8 +64,12 @@ test('HLS uploader publishes playlist before each new segment and removes upload
     fs.writeFileSync(path.join(directory, 'infinity-gen.m3u8'), mediaPlaylist(0, [first, second]));
 
     assert.equal(await uploader.sync(), true);
-    assert.deepEqual(calls.map((call) => call.filename), ['infinity-gen.m3u8', first, second]);
+    assert.deepEqual(calls.map((call) => call.filename), ['infinity-gen.m3u8', first, 'infinity-gen.m3u8', second]);
     assert.match(calls[0].text, /#EXT-X-MEDIA-SEQUENCE:0/);
+    assert.match(calls[0].text, /ig_ab12_00000000.ts/);
+    assert.doesNotMatch(calls[0].text, /ig_ab12_00000001.ts/);
+    assert.match(calls[2].text, /ig_ab12_00000000.ts/);
+    assert.match(calls[2].text, /ig_ab12_00000001.ts/);
     assert.equal(calls[1].contentType, 'video/MP2T');
     assert.equal(uploader.status().nextSequence, 2);
     assert.equal(fs.existsSync(path.join(directory, first)), false);
@@ -71,7 +79,7 @@ test('HLS uploader publishes playlist before each new segment and removes upload
     fs.writeFileSync(path.join(directory, third), Buffer.from('segment-two'));
     fs.writeFileSync(path.join(directory, 'infinity-gen.m3u8'), mediaPlaylist(0, [first, second, third]));
     assert.equal(await uploader.sync(), true);
-    assert.deepEqual(calls.slice(3).map((call) => call.filename), ['infinity-gen.m3u8', third]);
+    assert.deepEqual(calls.slice(4).map((call) => call.filename), ['infinity-gen.m3u8', third]);
     assert.equal(uploader.status().nextSequence, 3);
   } finally {
     uploader.stop();

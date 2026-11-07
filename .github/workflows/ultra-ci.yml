@@ -21,3 +21,5 @@ jobs:
         run: npm run check
       - name: Test suite
         run: npm test
+      - name: Build Docker image
+        run: docker build --pull --tag infinity-gen-ultra:test .

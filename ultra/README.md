@@ -99,6 +99,9 @@ The default database is ./data/infinity-ultra.sqlite. Keep the data directory on
 | HOST, PORT | HTTP bind address and port |
 | DATABASE_PATH | SQLite database path |
 | YOUTUBE_VIDEO_ID | Active YouTube live video ID for chat input |
+| YOUTUBE_CHANNEL_ID | Public YouTube channel ID for channel-level statistics |
+| YOUTUBE_API_KEY | Server-side YouTube Data API v3 key; never expose it to browser code |
+| YOUTUBE_STATS_INTERVAL_MS | Statistics polling interval, clamped to at least 60 seconds |
 | ADMIN_CHANNEL_IDS | Comma-separated YouTube channel IDs allowed to use .start and .stop |
 | LOBBY_SECONDS | Lobby countdown, 5–120 seconds |
 | GAME_MAX_SECONDS | Global game duration cap |
@@ -130,6 +133,14 @@ Keep `DATABASE_PATH` on persistent storage while reconnecting to the same YouTub
 The HLS stream key is a secret. Put it in the host's environment-secret settings; never place it in the repository, Studio HTML, a URL shared publicly, or browser-side JavaScript. HLS ingest normally has higher latency than RTMP because it is segment-based. Test on an unlisted broadcast before using it publicly. See the [official YouTube HLS ingestion requirements](https://developers.google.com/youtube/data/live/guides/hls-ingestion).
 
 The local segment directory is temporary and is cleaned up when the publisher stops. The persistent SQLite database stores only the sequence reservation, not the stream key or media files.
+
+## YouTube public statistics
+
+Set `YOUTUBE_API_KEY`, `YOUTUBE_CHANNEL_ID` and `YOUTUBE_VIDEO_ID` on the server to enable the public statistics panel. The API key stays server-side; neither the Studio nor the overlay receives it. The manager caches the latest response and polls at `YOUTUBE_STATS_INTERVAL_MS` (minimum 60 seconds).
+
+The channel request reads public subscriber count, total channel views and video count. The live-video request reads video views and likes, plus `concurrentViewers` when YouTube exposes it for the active live broadcast. YouTube may hide or round subscriber counts, and concurrent viewer data may be unavailable; the UI shows an em dash or “Hidden” rather than inventing a value.
+
+At a 60-second interval, two one-unit read requests per minute use approximately 2,880 quota units per day. The standard default allocation is 10,000 units per day for most read endpoints; check the project's current quota in Google Cloud before changing the polling interval. Private YouTube Analytics reports are not included because they require OAuth authorization. See the [YouTube Data API quota documentation](https://developers.google.com/youtube/data/determine_quota_cost).
 
 ## Chat commands
 

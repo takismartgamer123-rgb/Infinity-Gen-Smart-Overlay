@@ -32,7 +32,8 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/data/infinity-ultra.sqlite \
     TMPDIR=/data/tmp
 
-RUN apt-get update \
+RUN mkdir -p /data/tmp \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates \
        ffmpeg \
@@ -44,8 +45,7 @@ RUN apt-get update \
        libgif7 \
        librsvg2-2 \
        fontconfig \
-    && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /data/tmp
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /app /app

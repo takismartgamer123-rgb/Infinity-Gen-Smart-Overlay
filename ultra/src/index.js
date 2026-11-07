@@ -19,7 +19,7 @@ async function main() {
   const progression=new Progression(db,economy,events);const store=new UltraStore(db);
   const games=new GameEngine(db,events,config);const communityCommands=new CommunityCommands({db,economy,store,missions,progression,events});
   const chat=new YouTubeChatAdapter(config,games,events,communityCommands);
-  const renderer=new AuroraRenderer();const publisher=new FFmpegPublisher(config,events);
+  const renderer=new AuroraRenderer();const publisher=new FFmpegPublisher(config,events,db);
   const services={db,economy,missions,progression,store,games,chat,publisher,events,latestFrame:null};
   events.on('game:contribution',(event)=>{
     try{economy.grant(event.user,2,4,'game-action:'+event.gameId,'game-action:'+event.id);}
@@ -34,7 +34,7 @@ async function main() {
   if(config.generatedToken)console.log('Temporary admin token (set ADMIN_TOKEN before exposing this service): '+config.adminToken);
   events.on('system:warning',(warning)=>console.warn('[warning]',warning.message,warning.detail||''));
   if(config.enableChat&&config.youtubeVideoId)chat.start().catch((error)=>events.emit('system:warning',{message:'YouTube chat startup failed.',detail:error.message}));
-  if(config.enablePublisher&&config.publishUrl)setTimeout(()=>publisher.start(),1500).unref?.();
+  if(publisher.enabled)setTimeout(()=>publisher.start(),1500).unref?.();
   const renderTimer=setInterval(()=>{
     try{services.latestFrame=renderer.render(games.snapshot(),missions.list());if(config.enablePublisher)publisher.write(services.latestFrame);}
     catch(error){events.emit('system:warning',{message:'Overlay rendering failed.',detail:error.message});}

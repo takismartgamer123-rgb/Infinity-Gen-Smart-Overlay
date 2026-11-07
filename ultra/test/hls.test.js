@@ -142,12 +142,54 @@ test('HLS uploader rejects a sliding playlist that skipped a required segment', 
   }
 });
 
+
+test('HLS uploader resumes sequence reservation without uploading an acknowledged segment twice', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'infinity-gen-hls-reservation-'));
+  const calls = [];
+  let reservationAttempts = 0;
+  const uploader = new HlsIngestUploader({
+    baseUrl: 'https://a.upload.youtube.com/http_upload_hls?cid=test-key&copy=0&file=',
+    directory,
+    playlistName: 'infinity-gen.m3u8',
+    startNumber: 0,
+    segmentPrefix: 'ig_ab12_',
+    reserveNextSequence: async () => {
+      reservationAttempts++;
+      if (reservationAttempts === 1) throw new Error('temporary SQLite lock');
+      return 1;
+    },
+    upload: async (_base, filename, body) => {
+      calls.push({ filename, text: filename.endsWith('.m3u8') ? body.toString('utf8') : '' });
+      return { statusCode: 200 };
+    }
+  });
+  try {
+    const first = 'ig_ab12_00000000.ts';
+    fs.writeFileSync(path.join(directory, first), Buffer.from('segment-zero'));
+    fs.writeFileSync(path.join(directory, 'infinity-gen.m3u8'), mediaPlaylist(0, [first]));
+
+    await assert.rejects(uploader.sync(), /temporary SQLite lock/);
+    assert.equal(uploader.status().nextSequence, 0);
+    assert.equal(fs.existsSync(path.join(directory, first)), true);
+    assert.equal(calls.filter((call) => call.filename.endsWith('.ts')).length, 1);
+
+    assert.equal(await uploader.sync(true), true);
+    assert.equal(uploader.status().nextSequence, 1);
+    assert.equal(fs.existsSync(path.join(directory, first)), false);
+    assert.equal(calls.filter((call) => call.filename.endsWith('.ts')).length, 1);
+  } finally {
+    uploader.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('persistent HLS sequence reservations start at zero and advance across publisher restarts', () => {
   const db = new Persistence(':memory:');
   try {
-    assert.equal(db.allocateHlsSequence('video-one', 1000000), 0);
-    assert.equal(db.allocateHlsSequence('video-one', 1000000), 1000000);
-    assert.equal(db.allocateHlsSequence('video-two', 1000000), 0);
+    assert.equal(db.allocateHlsSequence('video-one', 1), 0);
+    assert.equal(db.allocateHlsSequence('video-one', 1), 1);
+    assert.equal(db.allocateHlsSequence('video-one', 1), 2);
+    assert.equal(db.allocateHlsSequence('video-two', 1), 0);
   } finally {
     db.close();
   }

@@ -5,6 +5,10 @@ function list(value) { return String(value || '').split(',').map(function (part)
 function loadConfig(env) {
   env = env || process.env;
   const generatedToken = !env.ADMIN_TOKEN;
+  const rawStatsInterval = Number(env.YOUTUBE_STATS_INTERVAL_MS || 60000);
+  const youtubeStatsIntervalMs = Number.isFinite(rawStatsInterval)
+    ? Math.max(60000, Math.min(3600000, rawStatsInterval))
+    : 60000;
   const publisherProtocol = String(env.PUBLISH_PROTOCOL || 'rtmp').toLowerCase();
   if (!['rtmp', 'hls'].includes(publisherProtocol)) throw new Error('PUBLISH_PROTOCOL must be rtmp or hls.');
   const config = {
@@ -17,7 +21,7 @@ function loadConfig(env) {
     youtubeVideoId: env.YOUTUBE_VIDEO_ID || '',
     youtubeChannelId: env.YOUTUBE_CHANNEL_ID || '',
     youtubeApiKey: env.YOUTUBE_API_KEY || '',
-    youtubeStatsIntervalMs: Math.max(60000, Math.min(3600000, Number(env.YOUTUBE_STATS_INTERVAL_MS || 60000))),
+    youtubeStatsIntervalMs: youtubeStatsIntervalMs,
     publishUrl: env.PUBLISH_URL || env.YOUTUBE_RTMP || '',
     publisherProtocol: publisherProtocol,
     youtubeHlsStreamKey: env.YOUTUBE_HLS_STREAM_KEY || '',

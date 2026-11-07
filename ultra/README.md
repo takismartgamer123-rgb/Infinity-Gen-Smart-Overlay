@@ -155,7 +155,7 @@ The local segment directory is temporary and is cleaned up when the publisher st
 
 Set `YOUTUBE_API_KEY`, `YOUTUBE_CHANNEL_ID` and `YOUTUBE_VIDEO_ID` on the server to enable the public statistics panel. The API key stays server-side; neither the Studio nor the overlay receives it. The manager caches the latest response and polls at `YOUTUBE_STATS_INTERVAL_MS` (minimum 60 seconds).
 
-The channel request reads public subscriber count, total channel views and video count. The live-video request reads video views and likes, plus `concurrentViewers` when YouTube exposes it for the active live broadcast. YouTube may hide or round subscriber counts, and concurrent viewer data may be unavailable; the UI shows an em dash or “Hidden” rather than inventing a value.
+The channel request reads public subscriber count, total channel views and channel video count. The live-video request reads video views and likes, plus `concurrentViewers` when YouTube exposes it for the active live broadcast. YouTube may hide or round subscriber counts, and concurrent viewer data may be unavailable; the UI shows an em dash or “Hidden” rather than inventing a value.
 
 At a 60-second interval, two one-unit read requests per minute use approximately 2,880 quota units per day. The standard default allocation is 10,000 units per day for most read endpoints; check the project's current quota in Google Cloud before changing the polling interval. Private YouTube Analytics reports are not included because they require OAuth authorization. See the [YouTube Data API quota documentation](https://developers.google.com/youtube/data/determine_quota_cost).
 

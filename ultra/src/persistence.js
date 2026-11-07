@@ -41,7 +41,7 @@ class Persistence {
   }
   allocateHlsSequence(streamId, blockSize) {
     const id = String(streamId || '').slice(0, 180);
-    const size = Math.max(1000, Math.min(10000000, Math.trunc(Number(blockSize || 1000000))));
+    const size = Math.max(1, Math.min(10000000, Math.trunc(Number(blockSize || 1))));
     if (!id) throw new Error('A stable stream identifier is required for HLS sequence allocation.');
     return this.transaction(() => {
       const row = this.get('SELECT next_sequence FROM publisher_sequences WHERE stream_id = ?', [id]);

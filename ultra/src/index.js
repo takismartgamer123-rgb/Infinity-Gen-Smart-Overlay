@@ -12,6 +12,7 @@ const { AuroraRenderer } = require('./renderer');
 const { FFmpegPublisher } = require('./publisher');
 const { createHttpServer } = require('./server');
 const { CommunityCommands } = require('./community-commands');
+const { YouTubeStatsManager } = require('./youtube-stats');
 
 async function main() {
   const config=loadConfig();const events=new EventEmitter();const db=new Persistence(config.databasePath);
@@ -20,7 +21,8 @@ async function main() {
   const games=new GameEngine(db,events,config);const communityCommands=new CommunityCommands({db,economy,store,missions,progression,events});
   const chat=new YouTubeChatAdapter(config,games,events,communityCommands);
   const renderer=new AuroraRenderer();const publisher=new FFmpegPublisher(config,events,db);
-  const services={db,economy,missions,progression,store,games,chat,publisher,events,latestFrame:null};
+  const stats=new YouTubeStatsManager(config,events);
+  const services={db,economy,missions,progression,store,games,chat,publisher,stats,events,latestFrame:null};
   events.on('game:contribution',(event)=>{
     try{economy.grant(event.user,2,4,'game-action:'+event.gameId,'game-action:'+event.id);}
     catch(error){events.emit('system:warning',{message:'Game reward could not be recorded.',detail:error.message});}
@@ -34,13 +36,14 @@ async function main() {
   if(config.generatedToken)console.log('Temporary admin token (set ADMIN_TOKEN before exposing this service): '+config.adminToken);
   events.on('system:warning',(warning)=>console.warn('[warning]',warning.message,warning.detail||''));
   if(config.enableChat&&config.youtubeVideoId)chat.start().catch((error)=>events.emit('system:warning',{message:'YouTube chat startup failed.',detail:error.message}));
+  stats.start();
   if(publisher.enabled)setTimeout(()=>publisher.start(),1500).unref?.();
   const renderTimer=setInterval(()=>{
-    try{services.latestFrame=renderer.render(games.snapshot(),missions.list());if(config.enablePublisher)publisher.write(services.latestFrame);}
+    try{services.latestFrame=renderer.render(games.snapshot(),missions.list(),stats.snapshot());if(config.enablePublisher)publisher.write(services.latestFrame);}
     catch(error){events.emit('system:warning',{message:'Overlay rendering failed.',detail:error.message});}
   },1000);
   renderTimer.unref?.();games.tick();const tickTimer=setInterval(()=>games.tick(),1000);tickTimer.unref?.();
-  const shutdown=async()=>{clearInterval(renderTimer);clearInterval(tickTimer);chat.stop();publisher.stop();await http.close();db.close();process.exit(0);};
+  const shutdown=async()=>{clearInterval(renderTimer);clearInterval(tickTimer);chat.stop();stats.stop();publisher.stop();await http.close();db.close();process.exit(0);};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
 }
 main().catch((error)=>{console.error('Infinity Gen Ultra failed to start:',error);process.exitCode=1;});

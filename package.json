@@ -9,7 +9,7 @@
     "dev": "node --watch ultra/src/index.js",
     "legacy:start": "node server.js",
     "test": "node --test",
-    "check": "node --check ultra/src/config.js && node --check ultra/src/community-commands.js && node --check ultra/src/index.js && node --check ultra/src/server.js && node --check ultra/src/games.js && node --check ultra/src/game-engine.js && node --check ultra/src/persistence.js && node --check ultra/src/security.js && node --check ultra/src/economy.js && node --check ultra/src/missions.js && node --check ultra/src/progression.js && node --check ultra/src/store.js && node --check ultra/src/chat-adapter.js && node --check ultra/src/renderer.js && node --check ultra/src/publisher.js && node --check ultra/studio/app.js && node --check ultra/overlay/app.js"
+    "check": "node --check ultra/src/config.js && node --check ultra/src/community-commands.js && node --check ultra/src/index.js && node --check ultra/src/server.js && node --check ultra/src/games.js && node --check ultra/src/game-engine.js && node --check ultra/src/persistence.js && node --check ultra/src/security.js && node --check ultra/src/economy.js && node --check ultra/src/missions.js && node --check ultra/src/progression.js && node --check ultra/src/store.js && node --check ultra/src/chat-adapter.js && node --check ultra/src/renderer.js && node --check ultra/src/publisher.js && node --check ultra/src/hls-uploader.js && node --check ultra/studio/app.js && node --check ultra/overlay/app.js"
   },
   "engines": { "node": ">=22.13.0 <25" },
   "dependencies": {

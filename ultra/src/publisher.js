@@ -90,16 +90,18 @@ class FFmpegPublisher {
         .update(this.config.youtubeHlsStreamKey).digest('hex').slice(0, 32);
       const startNumber = this.persistence.allocateHlsSequence(streamId, 1000000);
       const ingestBase = buildHlsIngestBase(this.config.youtubeHlsStreamKey);
+      const prefix = 'ig_' + crypto.randomBytes(8).toString('hex') + '_';
       this.hlsDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'infinity-gen-hls-'));
       this.hlsUploader = new HlsIngestUploader({
         baseUrl: ingestBase,
         directory: this.hlsDirectory,
         playlistName: 'infinity-gen.m3u8',
         startNumber,
+        segmentPrefix: prefix,
+        segmentDuration: '2.000000',
         events: this.events
       });
       this.hlsUploader.start();
-      const prefix = 'ig_' + crypto.randomBytes(8).toString('hex') + '_';
       const child = spawn(
         this.config.ffmpegPath,
         buildHlsArgs(this.config, this.hlsDirectory, startNumber, prefix),

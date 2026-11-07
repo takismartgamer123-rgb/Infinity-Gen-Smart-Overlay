@@ -36,7 +36,7 @@ test('HLS media playlist parser checks sequence, segment names and encryption', 
     { filename: 'ig_ab12_00000012.ts', duration: '2.000000' },
     { filename: 'ig_ab12_00000013.ts', duration: '2.000000' }
   ]);
-  assert.match(buildProgressPlaylist(parsed, 0), /#EXT-X-MEDIA-SEQUENCE:12\\n#EXTINF:2.000000,\\nig_ab12_00000012.ts/);
+  assert.match(buildProgressPlaylist(parsed, 0), /#EXT-X-MEDIA-SEQUENCE:12\n#EXTINF:2.000000,\nig_ab12_00000012.ts/);
   assert.throws(() => parseMediaPlaylist('#EXTM3U\n#EXTINF:2,\na.ts'), /MEDIA-SEQUENCE/);
   assert.throws(() => parseMediaPlaylist(mediaPlaylist(0, ['../outside.ts'])), /Invalid HLS ingest filename/);
   assert.throws(() => parseMediaPlaylist('#EXTM3U\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-KEY:METHOD=AES-128\nx.ts'), /Encrypted HLS/);

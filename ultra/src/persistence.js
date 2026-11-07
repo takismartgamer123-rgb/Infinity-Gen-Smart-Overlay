@@ -26,7 +26,8 @@ class Persistence {
       'CREATE TABLE IF NOT EXISTS user_stats (user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, contributions INTEGER NOT NULL DEFAULT 0, games_completed INTEGER NOT NULL DEFAULT 0, missions_completed INTEGER NOT NULL DEFAULT 0)',
       'CREATE TABLE IF NOT EXISTS game_sessions (id TEXT PRIMARY KEY, game_id TEXT NOT NULL, phase TEXT NOT NULL, host_id TEXT NOT NULL, host_name TEXT NOT NULL, players_json TEXT NOT NULL, state_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, outcome TEXT)',
       'CREATE INDEX IF NOT EXISTS sessions_phase_idx ON game_sessions(phase, updated_at DESC)',
-      'CREATE TABLE IF NOT EXISTS event_log (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, created_at INTEGER NOT NULL, payload TEXT NOT NULL)'
+      'CREATE TABLE IF NOT EXISTS event_log (id TEXT PRIMARY KEY, event_type TEXT NOT NULL, created_at INTEGER NOT NULL, payload TEXT NOT NULL)',
+      'CREATE TABLE IF NOT EXISTS publisher_sequences (stream_id TEXT PRIMARY KEY, next_sequence INTEGER NOT NULL CHECK (next_sequence >= 0))'
     ];
     this.connection.exec(schema.join(';\n') + ';');
   }
@@ -37,6 +38,23 @@ class Persistence {
     this.connection.exec('BEGIN IMMEDIATE');
     try { const result = callback(); this.connection.exec('COMMIT'); return result; }
     catch (error) { try { this.connection.exec('ROLLBACK'); } catch (_) {} throw error; }
+  }
+  allocateHlsSequence(streamId, blockSize) {
+    const id = String(streamId || '').slice(0, 180);
+    const size = Math.max(1000, Math.min(10000000, Math.trunc(Number(blockSize || 1000000))));
+    if (!id) throw new Error('A stable stream identifier is required for HLS sequence allocation.');
+    return this.transaction(() => {
+      const row = this.get('SELECT next_sequence FROM publisher_sequences WHERE stream_id = ?', [id]);
+      const start = row ? Number(row.next_sequence) : 0;
+      if (!Number.isSafeInteger(start) || start < 0 || start + size > Number.MAX_SAFE_INTEGER) {
+        throw new Error('The persisted HLS sequence counter is invalid.');
+      }
+      this.run(
+        'INSERT INTO publisher_sequences(stream_id,next_sequence) VALUES(?,?) ON CONFLICT(stream_id) DO UPDATE SET next_sequence=excluded.next_sequence',
+        [id, start + size]
+      );
+      return start;
+    });
   }
   ensureUser(user) {
     const now = Date.now();

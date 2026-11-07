@@ -170,8 +170,8 @@ class HlsIngestUploader {
     });
   }
 
-  async sync() {
-    if (this.stopped || this.syncing || Date.now() < this.retryAfter) return false;
+  async sync(force) {
+    if (this.stopped || this.syncing || (!force && Date.now() < this.retryAfter)) return false;
     this.syncing = true;
     const operation = this.syncInternal();
     this.activeSync = operation;
@@ -244,7 +244,7 @@ class HlsIngestUploader {
     this.timer = null;
     while (this.activeSync) await this.activeSync.catch(() => {});
     if (!this.stopped) {
-      try { await this.sync(); }
+      try { await this.sync(true); }
       finally { this.stop(); }
     }
   }

@@ -49,7 +49,9 @@ class AuroraRenderer {
       ctx.fillStyle='#AFA7C7';ctx.font='18px Arial';ctx.fillText(m.progress+'/'+m.target,1320,y+58);
     });
     ctx.fillStyle='#F5F3FF';ctx.font='bold 28px Arial';ctx.fillText('COMMUNITY',1320,745);
-    ctx.fillStyle='#53DDE0';ctx.font='bold 52px Arial';ctx.fillText('LEVEL '+String((missions||[]).filter((m)=>m.status==='completed').length+1),1320,820);
+    const worldMission=(missions||[]).find((m)=>m.scope==='world');
+    const communityLevel=1+Math.floor(Number(worldMission?worldMission.progress:0)/100);
+    ctx.fillStyle='#53DDE0';ctx.font='bold 52px Arial';ctx.fillText('LEVEL '+String(communityLevel),1320,820);
     ctx.fillStyle='#B8B2CC';ctx.font='22px Arial';ctx.fillText('Every verified action moves us forward.',1320,875);
     const channelStats=stats&&stats.channel||{};const videoStats=stats&&stats.video||{};
     const count=(value)=>value===null||value===undefined?'—':Number(value).toLocaleString('en-US');

@@ -19,6 +19,7 @@ function createHttpServer(config,services) {
     ok:true,service:'Infinity Gen Ultra',chatConnected:Boolean(services.chat.connected),
     publisher:services.publisher.status(),game:services.games.snapshot(),uptime:Math.floor(process.uptime())
   }));
+  app.get('/api/stats',(req,res)=>res.json(services.stats?services.stats.snapshot():{enabled:false,channel:null,video:null,updatedAt:null}));
   app.get('/api/games',(req,res)=>res.json(services.games.catalog()));
   app.get('/api/state',(req,res)=>res.json({
     game:services.games.snapshot(),missions:services.missions.list(),
@@ -82,6 +83,7 @@ function createHttpServer(config,services) {
   wss.on('connection',(socket)=>{
     clients.add(socket);
     socket.send(JSON.stringify({type:'state',payload:services.games.snapshot()}));
+    if(services.stats)socket.send(JSON.stringify({type:'youtube-stats',payload:services.stats.snapshot()}));
     socket.on('close',()=>clients.delete(socket));
     socket.on('error',()=>clients.delete(socket));
   });
@@ -96,6 +98,7 @@ function createHttpServer(config,services) {
   services.events.on('mission:completed',(mission)=>publish({type:'mission-completed',payload:mission}));
   services.events.on('achievement:unlocked',(achievement)=>publish({type:'achievement',payload:achievement}));
   services.events.on('publisher:state',(state)=>publish({type:'publisher',payload:state}));
+  services.events.on('youtube:stats',(stats)=>publish({type:'youtube-stats',payload:stats}));
   services.events.on('chat:connected',(state)=>publish({type:'chat',payload:state}));
   const studioPath=path.resolve(__dirname,'../studio/index.html');
   const overlayPath=path.resolve(__dirname,'../overlay/index.html');

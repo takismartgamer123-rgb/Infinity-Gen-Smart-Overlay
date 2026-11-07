@@ -29,7 +29,7 @@ The remake lives in its own ultra directory. The original prototype files (serve
 | Ultra Store | Catalog, inventory, equip slots and deterministic crafting |
 | YouTube Adapter | Masterchat input; optional and separately configured |
 | Renderer | Server-side 1920×1080 Gamma Aurora PNG frames |
-| Publisher | Optional FFmpeg image-pipe publisher to RTMP/RTMPS |
+| Publisher | Optional FFmpeg image-pipe publisher to RTMP/RTMPS or YouTube HLS ingest via ordered HTTPS PUT uploads |
 | Studio / Overlay | Static control dashboard and read-only live overlay |
 
 This is intentionally a **modular monolith**, not a collection of separately hosted microservices. The modules can be separated later if a real operational need appears.
@@ -91,6 +91,23 @@ Open the Studio at http://localhost:3000/studio/. The OBS browser source can use
 
 The default database is ./data/infinity-ultra.sqlite. Keep the data directory on persistent storage and back it up before upgrades.
 
+### Run as a Docker container
+
+The repository includes a Dockerfile with Node.js 22, FFmpeg and the native libraries required by Canvas. Build and run it with a persistent data mount:
+
+~~~sh
+docker build -t infinity-gen-ultra .
+mkdir -p data
+docker run -d --name infinity-gen-ultra \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v "$PWD/data:/data" \
+  --env-file .env \
+  infinity-gen-ultra
+~~~
+
+For HLS, set `DATABASE_PATH=/data/infinity-ultra.sqlite` in the private `.env` file. The container sets `TMPDIR=/data/tmp` so the active HLS segment spool is placed under the mounted data directory while the process is running. Keep that volume persistent. Never bake `.env`, API keys or stream keys into the image.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -99,15 +116,48 @@ The default database is ./data/infinity-ultra.sqlite. Keep the data directory on
 | HOST, PORT | HTTP bind address and port |
 | DATABASE_PATH | SQLite database path |
 | YOUTUBE_VIDEO_ID | Active YouTube live video ID for chat input |
+| YOUTUBE_CHANNEL_ID | Public YouTube channel ID for channel-level statistics |
+| YOUTUBE_API_KEY | Server-side YouTube Data API v3 key; never expose it to browser code |
+| YOUTUBE_STATS_INTERVAL_MS | Statistics polling interval, clamped to at least 60 seconds |
 | ADMIN_CHANNEL_IDS | Comma-separated YouTube channel IDs allowed to use .start and .stop |
 | LOBBY_SECONDS | Lobby countdown, 5–120 seconds |
 | GAME_MAX_SECONDS | Global game duration cap |
 | ENABLE_CHAT | Set to false to disable the YouTube adapter |
 | ENABLE_PUBLISHER | Must be true to start FFmpeg publishing |
-| PUBLISH_URL | Private relay RTMP(S) URL; YOUTUBE_RTMP is accepted as a fallback |
+| PUBLISH_PROTOCOL | `rtmp` (default) or `hls` |
+| PUBLISH_URL | Private relay RTMP(S) URL; used only in RTMP mode |
+| YOUTUBE_HLS_STREAM_KEY | YouTube Studio HLS stream key; used only in HLS mode |
 | FFMPEG_PATH, FFMPEG_BITRATE | FFmpeg binary and video bitrate |
 
 Never commit .env, a YouTube stream key, or an authenticated relay URL. The example environment is safe to publish.
+
+### YouTube HLS ingest mode
+
+The default publisher remains RTMP. To publish directly to YouTube using HLS, set:
+
+~~~env
+ENABLE_PUBLISHER=true
+PUBLISH_PROTOCOL=hls
+YOUTUBE_VIDEO_ID=your_active_live_video_id
+YOUTUBE_HLS_STREAM_KEY=your_hls_stream_key
+DATABASE_PATH=./data/infinity-ultra.sqlite
+~~~
+
+The publisher generates local MPEG-TS segments with FFmpeg, then uploads a refreshed media playlist before each segment to YouTube's primary HLS ingest endpoint using HTTPS PUT. Each upload playlist lists the two most recent acknowledged segments plus the next segment, staying within YouTube's outstanding-segment limit. It uses two-second MPEG-TS segments, H.264 video and AAC audio, and assigns unique segment filenames per FFmpeg run. Local queued segments are uploaded in order, even if the five-entry FFmpeg playlist has rolled forward.
+
+Keep `DATABASE_PATH` on persistent storage while reconnecting to the same YouTube live event. Infinity Gen reserves the first sequence number and then reserves each following number transactionally in SQLite as the previous segment is acknowledged. A restarted encoder therefore continues from the next reserved sequence instead of restarting at zero. Starting a different live event (a different `YOUTUBE_VIDEO_ID`) gets a new sequence starting at zero. A crash in the narrow interval after a number is reserved but before its segment is uploaded can leave a small sequence gap, but it will not reuse an old sequence number. If the database is reset while reusing the same live event, sequence continuity cannot be guaranteed.
+
+The HLS stream key is a secret. Put it in the host's environment-secret settings; never place it in the repository, Studio HTML, a URL shared publicly, or browser-side JavaScript. HLS ingest normally has higher latency than RTMP because it is segment-based. Test on an unlisted broadcast before using it publicly. See the [official YouTube HLS ingestion requirements](https://developers.google.com/youtube/data/live/guides/hls-ingestion).
+
+The local segment directory is temporary and is cleaned up when the publisher stops. The persistent SQLite database stores only the sequence reservation, not the stream key or media files.
+
+## YouTube public statistics
+
+Set `YOUTUBE_API_KEY`, `YOUTUBE_CHANNEL_ID` and `YOUTUBE_VIDEO_ID` on the server to enable the public statistics panel. The API key stays server-side; neither the Studio nor the overlay receives it. The manager caches the latest response and polls at `YOUTUBE_STATS_INTERVAL_MS` (minimum 60 seconds).
+
+The channel request reads public subscriber count, total channel views and channel video count. The live-video request reads video views and likes, plus `concurrentViewers` when YouTube exposes it for the active live broadcast. YouTube may hide or round subscriber counts, and concurrent viewer data may be unavailable; the UI shows an em dash or “Hidden” rather than inventing a value.
+
+At a 60-second interval, two one-unit read requests per minute use approximately 2,880 quota units per day. The standard default allocation is 10,000 units per day for most read endpoints; check the project's current quota in Google Cloud before changing the polling interval. Private YouTube Analytics reports are not included because they require OAuth authorization. See the [YouTube Data API quota documentation](https://developers.google.com/youtube/data/determine_quota_cost).
 
 ## Chat commands
 
@@ -150,6 +200,7 @@ For security, .start and .stop are ignored unless ADMIN_CHANNEL_IDS matches the 
 |---|---|
 | /health | Process health check |
 | /api/status | Engine, chat and publisher status |
+| /api/stats | Cached public YouTube channel and live-video statistics |
 | /api/games | Game catalog |
 | /api/state | Current game, missions and community progression |
 | /api/missions | Mission catalog and progress |

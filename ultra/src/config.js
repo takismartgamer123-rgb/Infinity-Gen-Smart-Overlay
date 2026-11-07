@@ -5,6 +5,12 @@ function list(value) { return String(value || '').split(',').map(function (part)
 function loadConfig(env) {
   env = env || process.env;
   const generatedToken = !env.ADMIN_TOKEN;
+  const rawStatsInterval = Number(env.YOUTUBE_STATS_INTERVAL_MS || 60000);
+  const youtubeStatsIntervalMs = Number.isFinite(rawStatsInterval)
+    ? Math.max(60000, Math.min(3600000, rawStatsInterval))
+    : 60000;
+  const publisherProtocol = String(env.PUBLISH_PROTOCOL || 'rtmp').toLowerCase();
+  if (!['rtmp', 'hls'].includes(publisherProtocol)) throw new Error('PUBLISH_PROTOCOL must be rtmp or hls.');
   const config = {
     port: Math.max(1, Math.min(65535, Number(env.PORT || 3000))),
     host: env.HOST || '0.0.0.0',
@@ -13,7 +19,12 @@ function loadConfig(env) {
     generatedToken: generatedToken,
     adminChannelIds: list(env.ADMIN_CHANNEL_IDS),
     youtubeVideoId: env.YOUTUBE_VIDEO_ID || '',
+    youtubeChannelId: env.YOUTUBE_CHANNEL_ID || '',
+    youtubeApiKey: env.YOUTUBE_API_KEY || '',
+    youtubeStatsIntervalMs: youtubeStatsIntervalMs,
     publishUrl: env.PUBLISH_URL || env.YOUTUBE_RTMP || '',
+    publisherProtocol: publisherProtocol,
+    youtubeHlsStreamKey: env.YOUTUBE_HLS_STREAM_KEY || '',
     ffmpegPath: env.FFMPEG_PATH || 'ffmpeg',
     ffmpegBitrate: env.FFMPEG_BITRATE || '1800k',
     lobbySeconds: Math.max(5, Math.min(120, Number(env.LOBBY_SECONDS || 20))),

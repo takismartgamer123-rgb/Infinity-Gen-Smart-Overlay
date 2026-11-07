@@ -51,6 +51,25 @@ function renderStore(){
     card.append(type);grid.append(card);
   });
 }
+function formatCount(value){
+  if(value===null||value===undefined||value==='')return '—';
+  return Number(value).toLocaleString();
+}
+function renderYouTubeStats(stats){
+  const channel=stats&&stats.channel||{};const video=stats&&stats.video||{};
+  $('#yt-subscribers').textContent=channel.subscriberCountHidden?'Hidden':formatCount(channel.subscriberCount);
+  $('#yt-channel-views').textContent=formatCount(channel.viewCount);
+  $('#yt-video-views').textContent=formatCount(video.viewCount);
+  $('#yt-video-likes').textContent=formatCount(video.likeCount);
+  $('#yt-concurrent-viewers').textContent=formatCount(video.concurrentViewers);
+  const enabled=Boolean(stats&&stats.enabled);
+  const note=$('#yt-stats-note');
+  if(note){
+    note.textContent=!enabled
+      ?'Set YOUTUBE_API_KEY plus YOUTUBE_CHANNEL_ID and/or YOUTUBE_VIDEO_ID on the server to enable public metrics.'
+      :stats.updatedAt?'Last updated '+new Date(stats.updatedAt).toLocaleTimeString():'Waiting for the first YouTube API response.';
+  }
+}
 function renderState(){
   if(!state)return;const game=state.game||{};
   $('#engine-status').textContent='ONLINE';$('#uptime').textContent='Uptime '+state.uptime+'s';
@@ -63,13 +82,13 @@ function renderState(){
 }
 async function refresh(){
   try{
-    const [status,stateBody,gameBody,missionBody,storeBody]=await Promise.all([
-      api('/api/status'),api('/api/state'),api('/api/games'),api('/api/missions'),api('/api/store/catalog')
+    const [status,stateBody,gameBody,missionBody,storeBody,statsBody]=await Promise.all([
+      api('/api/status'),api('/api/state'),api('/api/games'),api('/api/missions'),api('/api/store/catalog'),api('/api/stats')
     ]);
     state=Object.assign({},status,stateBody.game);missions=missionBody;games=gameBody;items=storeBody.items;
     $('#community-level').textContent=storeBody.level;
     $('#world-progress').textContent='World mission: '+stateBody.community.worldProgress+'/'+stateBody.community.worldTarget;
-    renderState();renderGames();renderMissions();renderStore();
+    renderState();renderGames();renderMissions();renderStore();renderYouTubeStats(statsBody);
   }catch(error){$('#engine-status').textContent='OFFLINE';$('#uptime').textContent=error.message;notice(error.message,true);}
 }
 $('#token-toggle').addEventListener('click',()=>{ $('#admin-token').value=adminToken;$('#access-dialog').showModal(); });
@@ -91,7 +110,7 @@ let socket;
 function connectSocket(){
   socket=new WebSocket(socketUrl);
   socket.addEventListener('message',(event)=>{
-    try{const message=JSON.parse(event.data);if(message.type==='state'){$('#active-game').textContent=message.payload.game?message.payload.game.name:'Idle';$('#participant-count').textContent=message.payload.playerCount||0;$('#phase-pill').textContent=message.payload.phase.toUpperCase();}else if(message.type==='notice')notice(message.payload.text||'');else if(message.type==='mission-completed')notice('Mission completed: '+message.payload.title);}
+    try{const message=JSON.parse(event.data);if(message.type==='state'){$('#active-game').textContent=message.payload.game?message.payload.game.name:'Idle';$('#participant-count').textContent=message.payload.playerCount||0;$('#phase-pill').textContent=message.payload.phase.toUpperCase();}else if(message.type==='notice')notice(message.payload.text||'');else if(message.type==='mission-completed')notice('Mission completed: '+message.payload.title);else if(message.type==='youtube-stats')renderYouTubeStats(message.payload);}
     catch(_){}
   });
   socket.addEventListener('close',()=>setTimeout(connectSocket,3000));

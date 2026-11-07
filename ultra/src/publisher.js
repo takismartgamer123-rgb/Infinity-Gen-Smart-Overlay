@@ -133,9 +133,10 @@ class FFmpegPublisher {
     child.once('close', async (code, signal) => {
       if (this.process === child) this.process = null;
       if (this.hlsUploader) {
-        try { await this.hlsUploader.sync(); }
+        try { await this.hlsUploader.drain(); }
         catch (error) {
           this.events.emit('system:warning', { message: 'Final HLS segment upload failed.', detail: error.message });
+          this.hlsUploader.stop();
         }
       }
       this.cleanupHls();

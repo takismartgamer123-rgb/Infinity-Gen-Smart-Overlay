@@ -51,6 +51,7 @@ test('HLS uploader publishes playlist before each new segment and removes upload
     directory,
     playlistName: 'infinity-gen.m3u8',
     startNumber: 0,
+    segmentPrefix: 'ig_ab12_',
     upload: async (_base, filename, body, contentType) => {
       calls.push({ filename, text: filename.endsWith('.m3u8') ? body.toString('utf8') : '', contentType });
       return { statusCode: 200 };
@@ -87,12 +88,49 @@ test('HLS uploader publishes playlist before each new segment and removes upload
   }
 });
 
+
+test('HLS uploader recovers queued local segments after the rolling playlist has advanced', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'infinity-gen-hls-backlog-'));
+  const calls = [];
+  const uploader = new HlsIngestUploader({
+    baseUrl: 'https://a.upload.youtube.com/http_upload_hls?cid=test-key&copy=0&file=',
+    directory,
+    playlistName: 'infinity-gen.m3u8',
+    startNumber: 0,
+    segmentPrefix: 'ig_ab12_',
+    upload: async (_base, filename, body) => {
+      calls.push({ filename, text: filename.endsWith('.m3u8') ? body.toString('utf8') : '' });
+      return { statusCode: 200 };
+    }
+  });
+  try {
+    const all = Array.from({ length: 7 }, (_, index) => 'ig_ab12_' + String(index).padStart(8, '0') + '.ts');
+    all.forEach((filename) => fs.writeFileSync(path.join(directory, filename), Buffer.from(filename)));
+    // FFmpeg's rolling playlist only retains the newest five segments, but the older
+    // segment files remain in the spool and must still be sent in sequence order.
+    fs.writeFileSync(path.join(directory, 'infinity-gen.m3u8'), mediaPlaylist(2, all.slice(2)));
+    assert.equal(await uploader.sync(), true);
+    assert.equal(uploader.status().nextSequence, 7);
+    assert.equal(calls.filter((call) => call.filename.endsWith('.m3u8')).length, 7);
+    assert.equal(calls.filter((call) => call.filename.endsWith('.ts')).length, 7);
+    assert.match(calls[0].text, /#EXT-X-MEDIA-SEQUENCE:0/);
+    assert.match(calls[0].text, /ig_ab12_00000000.ts/);
+    assert.match(calls.at(-2).text, /#EXT-X-MEDIA-SEQUENCE:4/);
+    assert.match(calls.at(-2).text, /ig_ab12_00000006.ts/);
+    assert.equal(all.some((filename) => fs.existsSync(path.join(directory, filename))), false);
+  } finally {
+    uploader.stop();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('HLS uploader rejects a sliding playlist that skipped a required segment', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'infinity-gen-hls-gap-'));
   const uploader = new HlsIngestUploader({
     baseUrl: 'https://a.upload.youtube.com/http_upload_hls?cid=test-key&copy=0&file=',
     directory,
     startNumber: 5,
+    segmentPrefix: 'ig_ab12_',
     upload: async () => ({ statusCode: 200 })
   });
   try {

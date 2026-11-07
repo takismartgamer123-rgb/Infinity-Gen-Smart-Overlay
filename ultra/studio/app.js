@@ -59,6 +59,7 @@ function renderYouTubeStats(stats){
   const channel=stats&&stats.channel||{};const video=stats&&stats.video||{};
   $('#yt-subscribers').textContent=channel.subscriberCountHidden?'Hidden':formatCount(channel.subscriberCount);
   $('#yt-channel-views').textContent=formatCount(channel.viewCount);
+  $('#yt-channel-videos').textContent=formatCount(channel.videoCount);
   $('#yt-video-views').textContent=formatCount(video.viewCount);
   $('#yt-video-likes').textContent=formatCount(video.likeCount);
   $('#yt-concurrent-viewers').textContent=formatCount(video.concurrentViewers);

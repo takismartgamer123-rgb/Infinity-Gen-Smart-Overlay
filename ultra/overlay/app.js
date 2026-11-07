@@ -18,6 +18,22 @@ function renderMissions(missions){
     wrap.append(node('div','pct',''+mission.progress+' / '+mission.target));list.append(wrap);
   });
 }
+function formatCount(value){
+  if(value===null||value===undefined||value==='')return '—';
+  return Number(value).toLocaleString();
+}
+function renderYouTubeStats(stats){
+  const channel=stats&&stats.channel||{};const video=stats&&stats.video||{};
+  $('#yt-subscribers').textContent=channel.subscriberCountHidden?'Hidden':formatCount(channel.subscriberCount);
+  $('#yt-channel-views').textContent=formatCount(channel.viewCount);
+  $('#yt-concurrent-viewers').textContent=formatCount(video.concurrentViewers);
+  $('#yt-video-views').textContent=formatCount(video.viewCount);
+  $('#yt-video-likes').textContent=formatCount(video.likeCount);
+  const updated=$('#yt-updated');
+  if(updated)updated.textContent=stats&&stats.enabled
+    ?(stats.updatedAt?'UPDATED '+new Date(stats.updatedAt).toLocaleTimeString():'WAITING FOR YOUTUBE DATA')
+    :'PUBLIC YOUTUBE STATS NOT CONFIGURED';
+}
 function socketConnect(){
   const protocol=location.protocol==='https:'?'wss://':'ws://';const socket=new WebSocket(protocol+location.host+'/ws');
   socket.addEventListener('open',()=>{$('#live-state').textContent='LIVE CONNECTION';});
@@ -37,14 +53,17 @@ function socketConnect(){
       if(message.type==='missions')renderMissions(message.payload);
       if(message.type==='notice')$('#description').textContent=message.payload.text||'Community update';
       if(message.type==='mission-completed')$('#description').textContent='Mission completed: '+message.payload.title;
+      if(message.type==='youtube-stats')renderYouTubeStats(message.payload);
     }catch(_){}
   });
 }
 async function loadInitial(){
   try{
-    const response=await fetch('/api/state');const data=await response.json();
+    const [response,statsResponse]=await Promise.all([fetch('/api/state'),fetch('/api/stats')]);
+    const data=await response.json();const stats=await statsResponse.json();
     renderMissions(data.missions);$('#level').textContent=String(data.community.level).padStart(2,'0');
     $('#community-progress').textContent=data.community.worldProgress+' / '+data.community.worldTarget+' world actions completed.';
+    renderYouTubeStats(stats);
   }catch(_){}
 }
 socketConnect();loadInitial();

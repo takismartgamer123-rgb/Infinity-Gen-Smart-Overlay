@@ -183,6 +183,7 @@ For security, .start and .stop are ignored unless ADMIN_CHANNEL_IDS matches the 
 |---|---|
 | /health | Process health check |
 | /api/status | Engine, chat and publisher status |
+| /api/stats | Cached public YouTube channel and live-video statistics |
 | /api/games | Game catalog |
 | /api/state | Current game, missions and community progression |
 | /api/missions | Mission catalog and progress |

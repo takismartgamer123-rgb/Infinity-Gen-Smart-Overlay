@@ -137,6 +137,8 @@ class HlsIngestUploader {
     this.segmentPrefix = String(settings.segmentPrefix || '');
     if (!/^[A-Za-z0-9_-]{1,48}$/.test(this.segmentPrefix)) throw new Error('HLS segment prefix is invalid.');
     this.segmentDuration = String(settings.segmentDuration || '2.000000');
+    this.reserveNextSequence = typeof settings.reserveNextSequence === 'function' ? settings.reserveNextSequence : null;
+    this.acknowledgedSegment = null;
     this.events = settings.events || null;
     this.upload = settings.upload || putFile;
     this.agent = new https.Agent({ keepAlive: true, maxSockets: 2 });
@@ -203,6 +205,25 @@ class HlsIngestUploader {
     const durationByFilename = new Map(parsed.segments.map((item) => [item.filename, item.duration]));
     let uploaded = 0;
     while (true) {
+      // If YouTube acknowledged a segment but SQLite could not reserve the next
+      // sequence, finish the reservation on retry without uploading the segment twice.
+      if (this.acknowledgedSegment) {
+        const followingSequence = this.reserveNextSequence
+          ? await this.reserveNextSequence()
+          : this.nextSequence + 1;
+        if (!Number.isSafeInteger(followingSequence) || followingSequence <= this.nextSequence) {
+          throw new Error('Persistent HLS sequence reservation did not advance monotonically.');
+        }
+        const acknowledged = this.acknowledgedSegment;
+        this.nextSequence = followingSequence;
+        this.acknowledgedSegment = null;
+        await fs.promises.unlink(acknowledged.filePath).catch((error) => {
+          if (error.code !== 'ENOENT') throw error;
+        });
+        uploaded++;
+        continue;
+      }
+
       const filename = this.segmentFilename(this.nextSequence);
       const filePath = path.join(this.directory, filename);
       let bytes;
@@ -230,11 +251,7 @@ class HlsIngestUploader {
         'application/vnd.apple.mpegurl', this.agent
       );
       await this.upload(this.baseUrl, filename, bytes, 'video/MP2T', this.agent);
-      this.nextSequence++;
-      uploaded++;
-      await fs.promises.unlink(filePath).catch((error) => {
-        if (error.code !== 'ENOENT') throw error;
-      });
+      this.acknowledgedSegment = { sequence: this.nextSequence, filePath };
     }
     return uploaded > 0;
   }
